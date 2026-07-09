@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ transcript.filename }} · Audio Intelligence{% endblock %}
+{% set nav = 'recordings' %}
+{% macro who_name(label) %}{% if label == owner_label %}You{% elif local_names.get(label) %}{{ local_names[label] }}{% else %}{{ label.replace("speaker_", "Voice ") }}{% endif %}{% endmacro %}
+{% set n_speakers = metrics.speakers | length %}
+{% set owner = (metrics.speakers | selectattr("speaker_label", "equalto", owner_label) | list | first) if owner_label else none %}
+{% set others = metrics.speakers | rejectattr("speaker_label", "equalto", owner_label) | list %}
+{% block content %}
+<div class="page stack-12 reveal">
+  <div class="stack-3">
+    <p class="step"><span class="step-n">05</span> of 05 · {{ transcript.conversation_type or "Conversation" }}</p>
+    <h1>{{ transcript.filename }}</h1>
+    <p class="lead">The quiet shape of the conversation — measured directly from the audio,
+      not interpreted. What it all <em class="aside-serif">means</em> comes next, on your terms.</p>
+  </div>
+
+  {% for w in metrics.warnings %}
+  <div class="notice notice-error">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span>{{ w }}</span>
+  </div>
+  {% endfor %}
+
+  <!-- Two columns: a quiet at-a-glance shape in the sticky rail; the talk-time
+       balance and the full transcript lead the main column. Deliberately pared
+       to the few numbers that carry meaning — balance, pace, and length. -->
+  <div class="split">
+    <aside class="split-rail stack-4">
+      <h2 class="h2-sm">At a glance</h2>
+      <div class="stat-rail">
+        <div class="stat">
+          <div class="value">{{ fmt_ts(metrics.conversation.total_duration_sec) }}</div>
+          <div class="label">Total length</div>
+        </div>
+        <div class="stat">
+          <div class="value">{{ fmt_ts(metrics.conversation.total_speech_sec) }}</div>
+          <div class="label">Time spent speaking</div>
+        </div>
+        {% if owner and owner.wpm %}
+        <div class="stat">
+          <div class="value">{{ owner.wpm | round | int }}<span class="unit">wpm</span></div>
+          <div class="label">Your pace</div>
+        </div>
+        {% endif %}
+      </div>
+    </aside>
+
+    <div class="split-main stack-8">
+      <!-- The one chart the per-conversation view earns: talk-time balance. -->
+      <div class="stack-4">
+        <h2 class="h2-sm">How the floor was shared</h2>
+        <div class="card stack-4">
+          {% if n_speakers == 2 and owner and owner.talk_time_pct is not none %}
+          {% set other = others | first %}
+          <div class="share" role="img" aria-label="You spoke {{ owner.talk_time_pct }}%, {{ who_name(other.speaker_label) }} {{ other.talk_time_pct }}%">
+            <div class="seg-you" style="width: {{ owner.talk_time_pct }}%"></div>
+            <div class="seg-other" style="width: {{ other.talk_time_pct }}%"></div>
+          </div>
+          <div class="share-legend">
+            <span class="who"><span class="sw you"></span> You <span class="pct">{{ owner.talk_time_pct | round | int }}%</span></span>
+            <span class="who"><span class="sw other"></span> {{ who_name(other.speaker_label) }} <span class="pct">{{ other.talk_time_pct | round | int }}%</span></span>
+          </div>
+          <p class="body-meta">Your share of the {{ fmt_ts(metrics.conversation.total_speech_sec) }} spent speaking, across {{ metrics.conversation.turn_count }} exchanges.</p>
+
+          {% elif n_speakers <= 1 %}
+          <p class="prose" style="color: var(--fg-2)">Only your side was captured here, so there&rsquo;s no two-way balance to show —
+            the quiet stretches are the other person speaking. {% if owner and owner.wpm %}You spoke at around {{ owner.wpm | round | int }} words a minute.{% endif %}</p>
+
+          {% else %}
+          <div class="freq">
+            {% for s in metrics.speakers %}
+            <div class="freq-row">
+              <span class="theme">{% if s.speaker_label == owner_label %}<span style="color: var(--accent); font-weight: 600">You</span>{% else %}{{ who_name(s.speaker_label) }}{% endif %}</span>
+              <span class="presence"><span class="pcount">{{ s.talk_time_pct | round | int }}% of the talk</span></span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Full transcript — folded away by default so the page stays calm. -->
+      <details class="disclosure">
+        <summary>
+          <span>Read the full transcript
+            <span class="summary-meta">· {{ transcript_lines | length }} lines</span>
+          </span>
+          <svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </summary>
+        <div class="transcript">
+          {% for line in transcript_lines %}
+          <div class="utterance {% if line.is_owner %}owner{% endif %}">
+            <span class="ts">{{ line.ts }}</span>
+            <span class="who">{{ who_name(line.speaker_label) }}</span>
+            <span class="text">{{ line.text }}</span>
+          </div>
+          {% else %}
+          <div class="utterance"><span class="text body-meta">No speech detected.</span></div>
+          {% endfor %}
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="row-between" style="align-items:center; gap:var(--space-4)">
+    <a href="/" class="btn btn-ghost">← All recordings</a>
+    {% if analysis_id %}
+    <div class="row" style="gap: var(--space-3)">
+      <a href="/transcripts/{{ transcript.id }}/analyze" class="btn btn-ghost">Reflect again</a>
+      <a href="/analyses/{{ analysis_id }}" class="btn btn-primary btn-lg">View reflection</a>
+    </div>
+    {% else %}
+    <a href="/transcripts/{{ transcript.id }}/analyze" class="btn btn-primary btn-lg">Prepare reflection</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

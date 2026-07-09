@@ -1,0 +1,285 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * Design tokens — the base design system for Audio Intelligence.
+ *
+ * "A quiet study at dusk." This is a private, personal space for reflecting on
+ * recordings of one's own conversations — so the language is calm, warm, and
+ * unhurried, not clinical or dashboard-like. A refined humanist serif (Fraunces)
+ * carries the headings like a journal hand; a clean system sans carries the
+ * body and dense data. Surfaces are barely-warm paper, ink is soft warm near-
+ * black, and the single accent is a deep, quiet ink-teal — trustworthy and
+ * human rather than techy.
+ *
+ * This is the machine-readable foundation of the front end: the :root { … }
+ * block below is the single source of truth for color, type, spacing, radius,
+ * elevation, and motion. Every stylesheet references these via var(--name) and
+ * never hard-codes raw hex outside this block.
+ *
+ * How to use:
+ *   - Keep this block loaded first (before app.css), verbatim.
+ *   - Reference everything downstream via var(--name).
+ *   - When evolving the system, overwrite values here rather than renaming
+ *     keys, so component CSS stays valid.
+ *
+ * Notes on a few deliberate bindings:
+ *   1. The surface ladder has three genuine warm-paper stops — page canvas,
+ *      near-white raised paper, and a pale warm feature field. --surface-warm
+ *      is a real intermediate tier, NOT an alias of --surface.
+ *   2. --fg-2, --muted, and --meta are independent values, not aliases. The
+ *      neutral text ramp is a deliberate four-stop warm-gray ladder and each
+ *      step is used somewhere.
+ *   3. --radius-pill is 980px, a large fixed value for the capsule CTA rather
+ *      than 9999px. Kept as a literal for the distinctive capsule shape.
+ *   4. --accent-hover lifts (a touch more luminous) and --accent-active darkens.
+ *      Buttons brighten slightly on hover and press darker, never mix to black.
+ * ─────────────────────────────────────────────────────────────── */
+
+/* ─── Fraunces — self-hosted variable serif (display / headings) ──────────
+ * Two small woff2 files (latin + latin italic), each a true variable font
+ * carrying the full 400–600 weight range and an optical-size axis. Self-hosted
+ * so the tool stays fully offline — nothing is fetched from a third party,
+ * consistent with "everything stays on this computer." `font-display: swap`
+ * keeps text visible immediately in the system serif fallback while the file
+ * loads. `SOFT` is dialed up slightly and `WONK` off for a warm, calm cut. */
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 380 620;
+  font-display: swap;
+  font-optical-sizing: auto;
+  src: url("/static/fonts/fraunces-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Fraunces";
+  font-style: italic;
+  font-weight: 380 520;
+  font-display: swap;
+  font-optical-sizing: auto;
+  src: url("/static/fonts/fraunces-latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* ─── Surface (3 levels + a base tint) ────────────────────────────
+   * Warm paper, not clinical white. A calm section rhythm alternates the
+   * page canvas with raised paper and a pale warm feature field.
+   *   --bg          → the page canvas: a barely-warm paper white.
+   *   --surface     → the pale warm field cards/bands lift ONTO.
+   *   --surface-warm→ a real third tier — the near-white raised paper used
+   *                   for cards that should read as a page on a page.
+   * All three are genuinely used; collapsing any one erases a real level. */
+  --bg: #fcfbf8;
+  --surface: #f4f1ea;
+  --surface-warm: #fffefb;
+
+  /* The whole app now rests on one continuous warm paper — no separate deeper
+   * "canvas" behind a floating card. --canvas is kept as a token (referenced by
+   * the nav's frosted strip) but bound to the page paper so there is no beige
+   * plane showing through beside the content. It is intentionally the same warm
+   * white as --bg: the page IS the surface, not a card lifted off a backdrop. */
+  --canvas: #fcfbf8;
+
+  /* ─── Foreground ramp (4 levels) ─────────────────────────────────
+   * A four-stop warm-neutral ink ladder: soft near-black ink (primary),
+   * warm dark gray (secondary), warm mid gray (helper / tertiary), and a
+   * soft warm gray (the most-restrained caption tier). None are pure black —
+   * the warmth reads softer and more human than a hard #000 on paper. */
+  --fg: #26221c;
+  --fg-2: #4a453d;
+  --muted: #736d63;
+  /* --meta is the most-restrained caption tier, but still real text — tuned to
+   * clear WCAG AA (≥4.1:1 on every surface) so eyebrows, step markers, footer,
+   * and captions stay legible. It sits just above --muted to keep the ramp
+   * four-stop rather than collapsing into it. */
+  --meta: #7a746a;
+
+  /* ─── Border (2 levels) ──────────────────────────────────────────
+   * Warm hairlines that sit quietly on paper. --border is the default
+   * divider/card-edge weight; --border-soft is a lighter near-neutral for
+   * inner row separators in dense lists where the default would over-compete. */
+  --border: #e4ddd0;
+  --border-soft: #efe9dd;
+
+  /* ─── Accent ──────────────────────────────────────────────────────
+   * The system's only persistent chromatic move — one deep, quiet ink-teal
+   * for action and link semantics. Trustworthy and calm rather than techy.
+   * Keep it to a hard cap of ≤2 visible accent uses per screen; don't
+   * introduce broad secondary accent palettes that compete with it. */
+  --accent: #2f5d57;
+  --accent-on: #fffefb; /* warm-white label on the teal fill */
+
+  /* A soft accent wash for quiet selected/owner states — the accent at a
+   * whisper, so highlighted rows feel gently lit, never loud. */
+  --accent-wash: #eef2ef;
+
+  /* ─── Accent states ───────────────────────────────────────────────
+   * Primary buttons gain a little luminance on hover and darken on press:
+   *   - hover:  #35685f  (a touch more luminous)
+   *   - active: #274c47  (a deeper press tone) */
+  --accent-hover: #35685f;
+  --accent-active: #274c47;
+
+  /* ─── Semantic ────────────────────────────────────────────────────
+   * Restrained, slightly desaturated defaults for success / warn / danger,
+   * tuned to sit calmly on warm paper beside the teal. This UI almost never
+   * needs a semantic palette; reserve under 5% of any surface area. */
+  --success: #3f7d57;
+  --warn:    #b8892f;
+  --danger:  #b4483c;
+
+  /* ─── Typography ──────────────────────────────────────────────────
+   * --font-display is the self-hosted Fraunces serif (journal-hand headings),
+   * with a graceful platform-serif fallback. --font-body is the native UI
+   * sans on every OS (best for dense data + long reading). --font-mono leads
+   * with the platform UI monospace. */
+  --font-display:
+    "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
+  --font-body:
+    system-ui, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Type scale (px). The body baseline is 17px (not the 16px web norm) for a
+   * comfortable reading texture; the display ceiling is 80px. Kept as-is so
+   * component CSS stays valid — the app deliberately lives in the lower-to-mid
+   * tiers (transaction/functional gear, not marketing-hero scale). */
+  --text-xs:   12px;   /* Micro UI — fine print, micro labels */
+  --text-sm:   14px;   /* Control Label — buttons, helper labels */
+  --text-base: 17px;   /* Body Primary — the reading baseline */
+  --text-lg:   21px;   /* Lead / large promo links */
+  --text-xl:   28px;   /* Card/Product Title — tile-level naming */
+  --text-2xl:  40px;   /* Product Heading — section titles */
+  --text-3xl:  56px;   /* Display L — large moments */
+  --text-4xl:  80px;   /* Display XL — the ceiling */
+
+  /* Leading is tight at the top of the scale (display sizes ride at
+   * 1.02–1.12) and airy in the body (1.6, above the web 1.4 default) so long
+   * reflective reading feels unhurried. */
+  --leading-body:  1.6;    /* body, 17px */
+  --leading-tight: 1.06;   /* Display ceiling */
+
+  /* The serif display carries its own warm character, so tracking is nearly
+   * neutral — a hair of negative tracking on the largest cuts only. Handled
+   * per-component to protect readability. */
+  --tracking-display: -0.01em;
+
+  /* ─── Spacing ─────────────────────────────────────────────────────
+   * An 8px grid. Values that don't match a token stay inline at the call
+   * site rather than spawning extra spacing tokens. */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ─── Section rhythm ──────────────────────────────────────────────
+   * Generous top/bottom breathing room so content is never crowded — an
+   * unhurried envelope that lets each screen settle. */
+  --section-y-desktop: 96px;
+  --section-y-tablet:  64px;
+  --section-y-phone:   44px;
+
+  /* ─── Radius ──────────────────────────────────────────────────────
+   * Softer, gentler corners than a typical app — rounded enough to feel calm
+   * and reassuring, never sharp:
+   *   --radius-sm   → 10px  compact controls and fields
+   *   --radius-md   → 14px  standard buttons, chips
+   *   --radius-lg   → 22px  cards, module frames, panels
+   *   --radius-pill → 980px the capsule CTA / badges — kept as a literal
+   *                          large value for the distinctive capsule shape. */
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   22px;
+  --radius-pill: 980px;
+
+  /* ─── Elevation (3 levels) ────────────────────────────────────────
+   * Depth is soft, ambient light — never a hard drop shadow. Three sanctioned
+   * levels:
+   *   - flat   → none (the default; warm tonal contrast does the work)
+   *   - ring   → 0 0 0 1px var(--border) (border-led containment)
+   *   - raised → a wide, low, warm-tinted ambient shadow so cards feel like
+   *              paper gently lifted off the page, not floated in space.
+   * No fourth level. */
+  --elev-flat:   none;
+  --elev-ring:   0 0 0 1px var(--border);
+  --elev-raised:
+    0 1px 2px rgba(60, 50, 35, 0.04),
+    0 12px 28px rgba(60, 50, 35, 0.06);
+
+  /* A softer companion lift for interactive surfaces on hover. */
+  --elev-hover:
+    0 2px 4px rgba(60, 50, 35, 0.05),
+    0 18px 40px rgba(60, 50, 35, 0.09);
+
+  /* ─── Focus ring ──────────────────────────────────────────────────
+   * A soft accent glow for keyboard focus and selection emphasis — a 4px ring
+   * at ~30% accent opacity, larger than a generic outline so it reads as a
+   * deliberate, calm halo. A box-shadow so it layers outside without shifting
+   * layout. */
+  --focus-ring: 0 0 0 4px color-mix(in oklab, var(--accent), transparent 70%);
+
+  /* ─── Motion ──────────────────────────────────────────────────────
+   * Transitions decelerate and settle — never bounce, never spring past the
+   * target. cubic-bezier(0.22, 0.61, 0.30, 1) is a gentle ease-out for hover
+   * and reveals; --motion-base is 260ms for a little calm weight, --motion-fast
+   * 160ms for true micro-states, and --motion-slow 520ms for soft page-load
+   * reveals. */
+  --motion-fast:   160ms;
+  --motion-base:   260ms;
+  --motion-slow:   520ms;
+  --ease-standard: cubic-bezier(0.22, 0.61, 0.30, 1);
+
+  /* ─── Layout ──────────────────────────────────────────────────────
+   * A real desktop tool: the shell spans a wide 1200px measure so content
+   * breathes across the window instead of squeezing into a narrow card.
+   * Nav, page, and footer all share --container-max so nothing floats.
+   *   --container-max   → the app's outer measure (nav / footer / page shell).
+   *   --measure-read    → a comfortable single-column reading width for prose
+   *                       and single-task forms, so a lone form never stretches
+   *                       absurdly wide on the open page.
+   *   --measure-prose   → a slightly tighter measure for hero paragraphs.
+   *   --rail-w          → the fixed width of the summary rail on the two-column
+   *                       dense screens (Metrics, Result).
+   * Gutters step 40 → 28 → 16 across desktop / tablet / phone — generous side
+   * margins that keep the wide content from touching the window edge. */
+  --container-max:            1200px;
+  --measure-read:             640px;
+  --measure-prose:            620px;
+  --rail-w:                   300px;
+  --container-gutter-desktop: 40px;
+  --container-gutter-tablet:  28px;
+  --container-gutter-phone:   16px;
+
+  /* ─── Dataviz (quiet) ─────────────────────────────────────────────
+   * A restrained chart vocabulary for the reflective numbers (talk-time
+   * balance, theme frequency, the archetype drift timeline). These are
+   * ADDITIVE keys — no existing value is changed. Most alias the tokens
+   * above so no new colour truly enters the system; only --viz-series-other
+   * and --viz-dot-past are new values, both warm in-family neutrals sitting
+   * between --muted and --border. The accent still marks exactly ONE thing
+   * per view (you / the highlighted series), honouring the ≤2-accent cap.
+   *   --viz-series-you    → the owner's series (the single accent use)
+   *   --viz-series-other  → the other voice / secondary series (warm neutral)
+   *   --viz-track         → empty bar/track fill
+   *   --viz-grid          → hairline axes and row separators
+   *   --viz-dot           → the current/most-recent timeline node
+   *   --viz-dot-past      → older, receded timeline nodes
+   *   --viz-bar-h/-radius → serene bar thickness + fully-rounded caps */
+  --viz-series-you:   var(--accent);
+  --viz-series-other: #b9b0a1;
+  --viz-track:        var(--surface);
+  --viz-grid:         var(--border-soft);
+  --viz-dot:          var(--accent);
+  --viz-dot-past:     #cfc6b6;
+  --viz-bar-h:        10px;
+  --viz-bar-radius:   var(--radius-pill);
+}

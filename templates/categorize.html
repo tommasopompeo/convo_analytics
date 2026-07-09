@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Describe · Audio Intelligence{% endblock %}
+{% set nav = 'recordings' %}
+{% block content %}
+<div class="page page-flow stack-8 reveal">
+  <div class="stack-3">
+    <p class="step"><span class="step-n">02</span> of 05 · Describe</p>
+    <h1>Tell me about this conversation</h1>
+    <p class="lead">A little context makes the later reflection sharper. Only the recording
+      itself is needed — the rest is yours to share, or leave, as you like.</p>
+  </div>
+
+  <form class="stack-8" action="/files/{{ file.id }}/categorize" method="post">
+    <div class="field">
+      <label>What kind of conversation was it?</label>
+      <div class="chip-group">
+        {% for t in conversation_types %}
+        <label class="chip">
+          <input type="radio" name="conversation_type" value="{{ t }}"
+                 {% if file.conversation_type == t %}checked{% endif %} />
+          {{ t }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="field">
+      <label>And your part in it?</label>
+      <div class="chip-group">
+        {% for r in owner_roles %}
+        <label class="chip">
+          <input type="radio" name="owner_role" value="{{ r }}"
+                 {% if file.owner_role == r %}checked{% endif %} />
+          {{ r }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Whose voice is in the recording?</label>
+      <div class="chip-group">
+        <label class="chip">
+          <input type="radio" name="single_sided" value="0"
+                 {% if not file.single_sided %}checked{% endif %} />
+          Both sides
+        </label>
+        <label class="chip">
+          <input type="radio" name="single_sided" value="1"
+                 {% if file.single_sided %}checked{% endif %} />
+          Only mine
+        </label>
+      </div>
+      <p class="field-help">Choose <em>Only mine</em> if the other person was on your
+        headphones and isn’t in the audio — the long silences are them speaking, so
+        they won’t be mistaken for a dropped recording.</p>
+    </div>
+
+    <hr class="rule" style="margin: 0" />
+
+    <div class="field">
+      <label for="objective">What were you hoping to get out of it? <span class="optional">— optional</span></label>
+      <input id="objective" name="objective" type="text"
+             value="{{ file.objective or '' }}"
+             placeholder="e.g. Understand their needs before the proposal" />
+    </div>
+
+    <div class="field">
+      <label for="context_note">Anything else worth knowing? <span class="optional">— optional</span></label>
+      <input id="context_note" name="context_note" type="text"
+             value="{{ file.context_note or '' }}"
+             placeholder="e.g. First call with this client" />
+    </div>
+
+    <div>
+      <button type="submit" class="btn btn-primary btn-lg">Start transcription</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <title>{% block title %}Audio Intelligence{% endblock %}</title>
+
+  <!-- Self-hosted display serif, preloaded so headings settle in quickly.
+       Design tokens load FIRST (they hold the :root block + @font-face), then
+       component styles that reference var(--*) only. -->
+  <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/static/css/tokens.css" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="nav">
+      <div class="nav-inner">
+        <a class="nav-brand" href="/" aria-label="Audio Intelligence — home">
+          <!-- Quiet ring-and-dot mark: a calm listening presence, not a logo shout. -->
+          <svg class="nav-mark" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="8.25" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.55"/>
+            <circle cx="10" cy="10" r="2.6" fill="currentColor"/>
+          </svg>
+          <span>Audio&nbsp;Intelligence</span>
+        </a>
+        <nav aria-label="Primary">
+          <ul class="nav-links">
+            <li><a href="/" {% if nav == 'recordings' %}aria-current="page"{% endif %}>Recordings</a></li>
+            <li><a href="/profile" {% if nav == 'profile' %}aria-current="page"{% endif %}>Profile</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <rect x="3" y="7" width="10" height="6.5" rx="1.6" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+        <span>Everything stays on this computer. Your recordings never leave this device.</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/js/app.js" defer></script>
+</body>
+</html>

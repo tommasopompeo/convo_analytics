@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Your profile · Audio Intelligence{% endblock %}
+{% set nav = 'profile' %}
+{% set n_total = corpus_stats.conversation_count %}
+{% block content %}
+<div class="page page-read stack-12 reveal">
+  <div class="stack-3">
+    <p class="eyebrow">Your reflection, over time</p>
+    <h1>What I&rsquo;ve come to<br>understand about you</h1>
+    <p class="lead">This grows only from your own words, gathered gently across every
+      conversation you choose to reflect on. No one else is ever profiled, and nothing
+      here leaves this device.</p>
+  </div>
+
+  {% if n_total %}
+  <!-- Corpus at a glance — honest deterministic counts (the platform owns these). -->
+  <div class="corpus-stats">
+    <div class="stat">
+      <div class="value">{{ n_total }}</div>
+      <div class="label">conversation{{ '' if n_total == 1 else 's' }} reflected on</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ corpus_stats.total_length }}</div>
+      <div class="label">of talk, listened back to</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ corpus_stats.conversation_types | length }}</div>
+      <div class="label">setting{{ '' if corpus_stats.conversation_types|length == 1 else 's' }}{% if corpus_stats.conversation_types %} &mdash; {{ corpus_stats.conversation_types | join(", ") | lower }}{% endif %}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if aggregate %}
+  {# ─── The genuine cross-corpus synthesis (the centerpiece) ─────────────── #}
+  {% set meta = aggregate.corpus_meta %}
+  <div class="card card-raised stack-4">
+    <div class="row-between">
+      <h2 class="h2-sm">Who you seem to be</h2>
+      <span class="badge badge-quiet">{% if aggregate.confidence %}{{ aggregate.confidence }} confidence &middot; {% endif %}{{ meta.conversation_count or n_total }} of {{ n_total }}</span>
+    </div>
+    <p class="prose" style="font-family: var(--font-display); font-size: 23px; line-height: 1.46; color: var(--fg); text-wrap: pretty">{{ aggregate.portrait }}</p>
+    <div class="row" style="flex-wrap: wrap; gap: var(--space-3)">
+      <span class="body-meta">Drawn from {{ meta.conversation_count or n_total }} conversation{{ '' if (meta.conversation_count or n_total) == 1 else 's' }}{% if aggregate._created_at %} &middot; refreshed {{ aggregate._created_at[:10] }}{% endif %}</span>
+      <span class="aside-serif" style="font-size: var(--text-sm)">a synthesis, not your latest talk</span>
+    </div>
+    {% if analyses_count > (meta.conversation_count or 0) %}
+    <p class="body-meta" style="color: var(--warn)">{{ analyses_count - (meta.conversation_count or 0) }} newer conversation{{ '' if (analyses_count - (meta.conversation_count or 0)) == 1 else 's' }} not yet folded in &mdash; refresh below to bring the portrait current.</p>
+    {% endif %}
+  </div>
+
+  {% if aggregate.shows_up_differently %}
+  <div class="stack-4">
+    <h2 class="h2-sm">How you show up, by setting</h2>
+    <p class="body-meta">The same drive, played in different registers &mdash; something no single conversation could show.</p>
+    <div class="register-grid">
+      {% for r in aggregate.shows_up_differently %}
+      <div class="register">
+        <span class="register-ctx">{{ r.context }}</span>
+        <p class="register-how">{{ r.how }}</p>
+        {% if r.supporting_conversations %}<span class="register-src">{{ r.supporting_conversations | join(", ") }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if aggregate.recurring_themes %}
+  <div class="stack-4">
+    <h2 class="h2-sm">What keeps surfacing</h2>
+    <div class="freq">
+      {% for t in aggregate.recurring_themes %}
+      <div class="freq-row">
+        <span class="theme">{{ t.theme }}</span>
+        <span class="presence">
+          {% for _ in range(t.conversation_count if t.conversation_count <= n_total else n_total) %}<span class="pdot"></span>{% endfor %}
+          {% for _ in range(n_total - t.conversation_count if t.conversation_count <= n_total else 0) %}<span class="pdot off"></span>{% endfor %}
+          <span class="pcount">{% if t.conversation_count >= n_total and n_total == 2 %}both{% else %}{{ t.conversation_count }} of {{ n_total }}{% endif %}</span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if aggregate.tensions %}
+  <div class="stack-4">
+    <h2 class="h2-sm">{{ 'A quiet tension' if aggregate.tensions|length == 1 else 'Quiet tensions' }}</h2>
+    {% for t in aggregate.tensions %}
+    <dl class="tension">
+      <dt>You say</dt><dd>{{ t.stated }}</dd>
+      <dt>Yet you</dt><dd>{{ t.observed }}</dd>
+    </dl>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if aggregate.drift and aggregate.drift.points %}
+  <div class="stack-4">
+    <h2 class="h2-sm">How the portrait took shape</h2>
+    {% if aggregate.drift.summary %}<p class="body-meta">{{ aggregate.drift.summary }}</p>{% endif %}
+    <ul class="timeline">
+      {% for p in aggregate.drift.points %}
+      <li {% if loop.last %}class="now"{% endif %}>
+        <div class="t-when">{% if p.date %}{{ p.date }} &middot; {% endif %}{{ p.conversation }}{% if loop.last %} &middot; now{% endif %}</div>
+        <div class="t-signal">{{ p.signal }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% else %}
+  {# ─── No synthesis yet — fall back to the accumulated profile + a nudge ─── #}
+  <div class="card card-raised stack-4">
+    <div class="row-between">
+      <h2 class="h2-sm">Who you seem to be, right now</h2>
+      <span class="badge badge-quiet">v{{ profile.version }}</span>
+    </div>
+    {% if profile.current_archetype %}
+    <p class="prose" style="font-family: var(--font-display); font-size: 22px; line-height: 1.45; color: var(--fg); text-wrap: pretty">{{ profile.current_archetype }}</p>
+    <p class="body-meta">This is your most recent conversation&rsquo;s read. Refresh below to synthesise a genuine portrait across all {{ n_total }} of them.</p>
+    {% else %}
+    <p class="body-muted">Not enough has been shared yet. Reflect on a conversation to begin
+      the portrait &mdash; it will fill in gently, over time.</p>
+    {% endif %}
+  </div>
+
+  {% if profile.recurring_topics %}
+  <div class="stack-4">
+    <h2 class="h2-sm">What keeps coming up</h2>
+    <div class="chip-list">
+      {% for t in profile.recurring_topics %}<span class="tag">{{ t }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if profile.communication_style_notes %}
+  <div class="stack-4">
+    <h2 class="h2-sm">How you tend to speak</h2>
+    <ul class="list-reflective">{% for n in profile.communication_style_notes %}<li>{{ n }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if n_total %}
+  <hr class="rule" />
+
+  <!-- Refresh — the Stage-1 manual paste loop, mirrored one level up. -->
+  <div class="card card-soft stack-4">
+    <div class="row-between" style="flex-wrap: wrap; gap: var(--space-4)">
+      <h3 style="font-family: var(--font-display)">Refresh the overall insight</h3>
+      <a href="/profile/refresh" class="btn btn-primary">
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M15.5 8A5.5 5.5 0 1 0 16 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M15.5 4.5V8H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Bundle for Claude
+      </a>
+    </div>
+    <p class="prose" style="color: var(--fg-2)">Gather every conversation&rsquo;s reflection into one prompt,
+      take it to Claude by hand, and paste the synthesis back &mdash; exactly the way you reflect on a
+      single conversation, one level up. Nothing leaves on its own; you carry each step across and see
+      everything shared.</p>
+    <p class="body-meta">Buildable now, no API key. Later, the same prompt and shape can run automatically after each upload &mdash; only the messenger changes.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

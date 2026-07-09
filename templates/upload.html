@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Upload · Audio Intelligence{% endblock %}
+{% set nav = 'recordings' %}
+{% block content %}
+<div class="page page-flow stack-8 reveal">
+  <div class="stack-3">
+    <p class="step"><span class="step-n">01</span> of 05 · Upload</p>
+    <h1>Bring in a recording</h1>
+    <p class="lead">Choose an audio file from this computer. It stays here — it isn’t
+      uploaded anywhere else, and only you will ever see it.</p>
+  </div>
+
+  {% if error %}
+  <div class="notice notice-error">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span>{{ error }}</span>
+  </div>
+  {% endif %}
+
+  <form class="card card-raised stack-6" action="/upload" method="post" enctype="multipart/form-data">
+    <div class="field">
+      <label for="audio">Audio file</label>
+      <input id="audio" name="audio" type="file" accept=".mp3,.m4a,.wav,audio/*" required />
+      <p class="field-help">MP3, M4A, or WAV — up to 500&nbsp;MB.</p>
+    </div>
+    <div>
+      <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+    </div>
+  </form>
+
+  <p class="body-meta">Your recording and its transcript are stored only in this
+    app’s local folder on this machine.</p>
+</div>
+{% endblock %}

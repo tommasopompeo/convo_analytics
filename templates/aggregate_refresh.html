@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Refresh your overall insight · Audio Intelligence{% endblock %}
+{% set nav = 'profile' %}
+{% block content %}
+<div class="page page-wide stack-12 reveal">
+  <div class="stack-3">
+    <p class="eyebrow">Overall insight</p>
+    <h1>Synthesise across all your conversations</h1>
+    <p class="lead">This gathers every conversation you&rsquo;ve reflected on &mdash; {{ corpus_stats.conversation_count }} in
+      all &mdash; into one prompt. Take it to a Claude chat, then bring the synthesis back here. Just like
+      reflecting on a single conversation, one level up: nothing leaves this device on its own, and you
+      see exactly what&rsquo;s shared.</p>
+  </div>
+
+  <!-- 1. The prompt -->
+  <div class="stack-4">
+    <div class="row-between">
+      <h2 class="h2-sm">1 · Take this to Claude</h2>
+      <button id="copy-prompt" type="button" class="btn btn-primary" data-target="prompt-text">
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M13 7V5.5A1.5 1.5 0 0 0 11.5 4h-6A1.5 1.5 0 0 0 4 5.5v6A1.5 1.5 0 0 0 5.5 13H7" stroke="currentColor" stroke-width="1.4"/>
+        </svg>
+        Copy prompt
+      </button>
+    </div>
+    <pre id="prompt-text" class="code-box">{{ prompt }}</pre>
+  </div>
+
+  <!-- 2. Paste back -->
+  <div class="stack-4">
+    <h2 class="h2-sm">2 · Bring the synthesis back</h2>
+
+    {% if error %}
+    <div class="notice notice-error">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <div>
+        {{ error }}
+        {% if field_errors %}
+        <ul>{% for fe in field_errors %}<li>{{ fe }}</li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <form class="stack-4" action="/profile/refresh" method="post">
+      <div class="field">
+        <label for="aggregate_json">Claude&rsquo;s JSON response</label>
+        <textarea id="aggregate_json" name="aggregate_json" class="mono"
+                  placeholder="Paste the aggregate JSON object Claude returns…"
+                  spellcheck="false">{{ pasted_text }}</textarea>
+        <p class="field-help">It should be a single JSON object. Code fences (```) are removed for you.</p>
+      </div>
+      <div class="row-between" style="gap: var(--space-4)">
+        <a href="/profile" class="btn btn-ghost">&larr; Back to your profile</a>
+        <button type="submit" class="btn btn-primary btn-lg">Save synthesis</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}What surfaced · Audio Intelligence{% endblock %}
+{% set nav = 'recordings' %}
+{% block content %}
+<div class="page stack-12 reveal">
+  <div class="stack-4">
+    <p class="eyebrow">Reflection · {{ created_at[:10] }}</p>
+    <h1>What surfaced</h1>
+    <div class="notice notice-success">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 10.2 9 12.6l4.5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Saved. This reflection has quietly grown your overall portrait. <a href="/profile" class="link-arrow">See what emerged across all your conversations &rarr;</a></span>
+    </div>
+  </div>
+
+  {% if not analysis %}
+    <div class="notice notice-error">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>This reflection couldn’t be re-parsed for display.</span>
+    </div>
+  {% else %}
+
+  <!-- Two columns: the essence ("In a few words") rests in a quiet sticky rail;
+       the trimmed reflection unfolds in the main column beside it. The full
+       per-conversation output is deliberately pared to what lands — the deeper
+       cross-conversation reading now lives on the profile. -->
+  <div class="split">
+    <aside class="split-rail stack-3">
+      <h2 class="h2-sm">In a few words</h2>
+      <p class="prose" style="font-size: var(--text-lg)">{{ analysis.summary }}</p>
+      {% if analysis.overall_sentiment.conversation or analysis.overall_sentiment.owner %}
+      <p class="aside-serif" style="font-size: var(--text-sm)">{{ analysis.overall_sentiment.conversation or analysis.overall_sentiment.owner }}.</p>
+      {% endif %}
+    </aside>
+
+    <div class="split-main stack-12">
+
+      <!-- STAR: You, in this conversation — promoted to the lead. -->
+      <div class="stack-4">
+        <h2 class="h2-sm">You, in this conversation</h2>
+        <div class="card stack-4">
+          {% if analysis.owner_insights.communication_style %}
+          <p class="showed-up">{{ analysis.owner_insights.communication_style }}</p>
+          {% endif %}
+          {% if analysis.owner_insights.notable_behaviors %}
+          <ul class="list-reflective">{% for b in analysis.owner_insights.notable_behaviors %}<li>{{ b }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if analysis.key_topics %}
+      <div class="stack-4">
+        <h2 class="h2-sm">What you talked about</h2>
+        <div class="reflect-list">
+          {% for t in analysis.key_topics %}
+          <div class="reflect-item">
+            <span class="reflect-title">{{ t.topic }}</span>
+            {% if t.driven_by_speaker %}<p class="reflect-note">Led by {{ 'you' if t.driven_by_speaker == 'owner' else t.driven_by_speaker.replace('speaker_', 'Voice ') }}</p>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.conversation_gaps %}
+      <div class="stack-4">
+        <h2 class="h2-sm">What went unsaid</h2>
+        <div class="reflect-list">
+          {% for g in analysis.conversation_gaps %}
+          <div class="reflect-item">
+            {% if g.type %}<span class="badge badge-quiet">{{ g.type.replace("_", " ") }}</span>{% endif %}
+            <p class="reflect-note" style="color: var(--fg-2)">{{ g.description }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.follow_ups.questions or analysis.follow_ups.actions %}
+      <div class="stack-4">
+        <h2 class="h2-sm">Worth carrying forward</h2>
+        <div class="card stack-6">
+          {% if analysis.follow_ups.questions %}
+          <div class="stack-3">
+            <h3>Questions to sit with</h3>
+            <ul class="list-reflective">{% for q in analysis.follow_ups.questions %}<li>{{ q }}</li>{% endfor %}</ul>
+          </div>
+          {% endif %}
+          {% if analysis.follow_ups.actions %}
+          <div class="stack-3">
+            <h3>Things you might do</h3>
+            <ul class="list-reflective">{% for a in analysis.follow_ups.actions %}<li>{{ a }}</li>{% endfor %}</ul>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div><!-- /.split-main -->
+  </div><!-- /.split -->
+
+  {% endif %}
+
+  <div class="row-between" style="gap:var(--space-4)">
+    <a href="/transcripts/{{ transcript_id }}" class="btn btn-ghost">← Back to the numbers</a>
+    <a href="/profile" class="btn btn-secondary">See your overall portrait</a>
+  </div>
+</div>
+{% endblock %}

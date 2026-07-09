@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Which voice is you · Audio Intelligence{% endblock %}
+{% set nav = 'recordings' %}
+{% block content %}
+<div class="page page-flow stack-8 reveal">
+  <div class="stack-3">
+    <p class="step"><span class="step-n">04</span> of 05 · Voices</p>
+    <h1>Which voice is you?</h1>
+    <p class="lead">I’ve separated the speakers by voice. Mark the one that’s you — that’s
+      the only tag that matters. You can name the others just for this recording if it helps
+      you read it back.</p>
+  </div>
+
+  {% if not speakers %}
+    <div class="notice notice-error">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>No speech was detected in this recording, so there are no voices to tag.</span>
+    </div>
+    <a class="btn btn-secondary" href="/">Back to recordings</a>
+  {% else %}
+  <form class="stack-8" action="/transcripts/{{ transcript.id }}/speakers" method="post">
+    <div class="stack-4">
+      {% for s in speakers %}
+      <div class="speaker-card {% if s.is_owner %}chosen{% endif %}">
+        <label class="owner-choice">
+          <input type="radio" name="owner" value="{{ s.speaker_label }}"
+                 {% if s.is_owner %}checked{% endif %} required />
+          This is me <span class="body-meta" style="font-weight:400">· {{ s.speaker_label.replace("speaker_", "Voice ") }}</span>
+        </label>
+
+        <div class="stack-3">
+          {% for sample in s.samples %}
+          <p class="sample"><span class="ts">{{ sample.ts }}</span>{{ sample.text }}</p>
+          {% else %}
+          <p class="sample body-meta">(no sample utterances)</p>
+          {% endfor %}
+        </div>
+
+        <div class="field">
+          <label for="name__{{ s.speaker_label }}">Name for this recording <span class="optional">— optional</span></label>
+          <input id="name__{{ s.speaker_label }}" name="local_name__{{ s.speaker_label }}"
+                 type="text" value="{{ s.local_name }}" placeholder="e.g. Client, Marco" />
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div>
+      <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

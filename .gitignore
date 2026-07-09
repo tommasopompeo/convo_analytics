@@ -1,0 +1,17 @@
+# Secrets — never track the Deepgram key
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local data (audio blobs + SQLite DB)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

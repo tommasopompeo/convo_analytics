@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Recordings · Audio Intelligence{% endblock %}
+{% set nav = 'recordings' %}
+{% block content %}
+
+<!-- ═══ Hero — atmospheric full-viewport opener ═══ -->
+<section class="hero-wrap" aria-label="Welcome">
+  <div class="hero-scrim" aria-hidden="true"></div>
+  <div class="hero-content reveal-hero">
+    <!-- Hero headline — swap text here to change the display line -->
+    <h1 class="hero-wordmark">Every word deserves a second listen.</h1>
+
+    <!-- Primary action — frosted upload pill linking to the real upload flow -->
+    <a href="/upload" class="hero-cta" aria-label="Upload a recording to get started">
+      <span class="hero-cta-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="none">
+          <path d="M10 4.2v9.4M10 4.2 6.4 7.8M10 4.2l3.6 3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4.5 15.2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span>Upload a recording</span>
+    </a>
+
+    <!-- Supporting copy -->
+    <p class="hero-lead">A quiet place to sit with your conversations.<br>Nothing here is shared, scored, or sent anywhere.</p>
+  </div>
+</section>
+
+<!-- Existing home content — completely unchanged below the fold -->
+<div class="page stack-12 reveal">
+  <div class="stack-4">
+    <p class="eyebrow">Your private space</p>
+    <div class="stack-3">
+      <h1>A quiet place to sit<br>with your conversations</h1>
+      <p class="lead">Upload a recording to transcribe it, see the quiet shape of the
+        conversation, and prepare it for reflection. Nothing here is shared, scored,
+        or sent anywhere.</p>
+    </div>
+    <div class="row" style="padding-top: var(--space-2)">
+      <a href="/upload" class="btn btn-primary btn-lg">
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 4.2v9.4M10 4.2 6.4 7.8M10 4.2l3.6 3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4.5 15.2h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Upload a recording
+      </a>
+    </div>
+  </div>
+
+  {% if recordings %}
+  <div class="stack-6">
+    <div class="stack-2">
+      <h2 class="h2-sm">Your recordings</h2>
+      <p class="body-meta">Quietly kept, only here.</p>
+    </div>
+    <ul class="record-list">
+      {% for r in recordings %}
+      {% if r.transcription_status == "done" %}
+        {% set href = "/transcripts/" ~ r.transcript_id %}
+      {% elif r.transcription_status == "transcribing" %}
+        {% set href = "/files/" ~ r.id ~ "/transcribing" %}
+      {% else %}
+        {% set href = "/files/" ~ r.id ~ "/categorize" %}
+      {% endif %}
+      <li class="record-row">
+        <a class="record" href="{{ href }}">
+          <div class="record-main">
+            <div class="title">{{ r.filename }}</div>
+            <div class="meta">{{ r.conversation_type or "Not yet described" }} · {{ r.uploaded_at[:10] }}</div>
+          </div>
+          <div class="record-side">
+            {% if r.transcription_status == "done" and r.analysis_id %}
+              <span class="badge badge-accent"><span class="badge-dot"></span>Reflected</span>
+            {% elif r.transcription_status == "done" %}
+              <span class="badge badge-success"><span class="badge-dot"></span>Ready</span>
+            {% elif r.transcription_status == "transcribing" %}
+              <span class="badge badge-accent"><span class="badge-dot"></span>Transcribing</span>
+            {% elif r.transcription_status == "failed" %}
+              <span class="badge badge-danger"><span class="badge-dot"></span>Needs another try</span>
+            {% else %}
+              <span class="badge badge-muted"><span class="badge-dot"></span>Uploaded</span>
+            {% endif %}
+            <svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </a>
+        {% if r.analysis_id %}
+        <a class="record-open" href="/analyses/{{ r.analysis_id }}" title="Open this recording’s reflection" aria-label="Open the reflection for {{ r.filename }}">
+          <span>What surfaced</span>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        {% endif %}
+        <form class="record-delete" method="post" action="/files/{{ r.id }}/delete"
+              onsubmit="return confirm('Delete “{{ r.filename }}”? This removes the recording and anything made from it, and can’t be undone.');">
+          <button type="submit" class="record-delete-btn" aria-label="Delete {{ r.filename }}" title="Delete this recording">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M4.5 6h11M8 6V4.75A1.25 1.25 0 0 1 9.25 3.5h1.5A1.25 1.25 0 0 1 12 4.75V6M6.25 6l.6 8.4A1.5 1.5 0 0 0 8.35 15.8h3.3a1.5 1.5 0 0 0 1.5-1.4L13.75 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="card card-soft stack-2">
+    <p class="body-muted">No recordings yet. When you upload one, it will rest here —
+      privately, on this device, ready whenever you want to return to it.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
