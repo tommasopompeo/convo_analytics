@@ -160,6 +160,26 @@ Windows note: kill a stale server with PowerShell
 
 ---
 
+## Fresh clone on a new machine — what's NOT in the repo
+
+A `git clone` gives you the **code only**. Three things are git-ignored and must be
+recreated locally (this is intentional — the repo is public and carries no secrets or
+personal data):
+
+- **`.env`** — the Deepgram API key. Copy `.env.example` → `.env` and fill in
+  `DEEPGRAM_API_KEY` (optionally `DEEPGRAM_LANGUAGE=it`). Without it, transcription
+  fails. The key is never logged/printed.
+- **`data/`** — the SQLite DB (`app.db`) + audio blobs: the user's real recordings,
+  transcripts, analyses, and accumulated profile. A fresh **empty** `app.db` is created
+  automatically on first run (`init_db()`), so the app works but starts with **zero
+  recordings and no profile / aggregate**. To carry the real data across machines, copy
+  the `data/` folder by hand (USB / secure transfer) — **never** through the repo.
+- **`.venv/`** — rebuild from `requirements.txt` (Python 3.12).
+
+So a fresh clone runs and looks correct (fonts, styling, all screens, tests pass) but
+is empty of data and has no key until you add `.env`. If the recordings list / profile
+look empty on a new machine, this is why — nothing is broken.
+
 ## Guardrails
 
 - **Never** log/print the Deepgram key; read it from `.env` at runtime only. `.env` is

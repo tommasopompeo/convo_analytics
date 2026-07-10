@@ -16,7 +16,15 @@ reply back → accumulate an owner profile. **The platform never calls an LLM it
 ```bash
 py -3.12 -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -r requirements.txt
+cp .env.example .env   # then fill in DEEPGRAM_API_KEY
 ```
+
+> **Cloning on another machine?** The repo carries the code only. `.env` (your key),
+> `data/` (your recordings + SQLite DB), and `.venv/` are git-ignored and are **not**
+> included. A fresh empty `data/app.db` is created on first run, so the app starts with
+> no recordings or profile — that's expected, nothing is broken. To move your actual
+> data across, copy the `data/` folder by hand; never push it. See `CLAUDE.md` →
+> "Fresh clone on a new machine" for the full list.
 
 ## Run
 
