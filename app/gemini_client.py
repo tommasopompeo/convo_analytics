@@ -12,14 +12,14 @@ from .models import AggregateOutput, AnalysisOutput
 
 
 async def analyze_conversation_async(prompt: str) -> AnalysisOutput:
-    """Send the transcript prompt to gemini-1.5-flash.
+    """Send the transcript prompt to gemini-2.5-flash.
 
     Uses response_schema to receive structured JSON matching the AnalysisOutput model.
     """
     api_key = get_gemini_api_key()
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     response = await model.generate_content_async(
         prompt,
         generation_config=genai.GenerationConfig(
@@ -33,14 +33,14 @@ async def analyze_conversation_async(prompt: str) -> AnalysisOutput:
 
 
 async def synthesize_profile_async(prompt: str) -> AggregateOutput:
-    """Send the aggregate prompt to gemini-1.5-pro.
+    """Send the aggregate prompt to gemini-2.5-pro.
 
     Uses response_schema to receive structured JSON matching the AggregateOutput model.
     """
     api_key = get_gemini_api_key()
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel("gemini-1.5-pro")
+    model = genai.GenerativeModel("gemini-2.5-pro")
     response = await model.generate_content_async(
         prompt,
         generation_config=genai.GenerationConfig(

@@ -1,29 +1,30 @@
-# Audio Intelligence — Prototype v1
+# Audio Intelligence
 
-A private, local tool: upload a conversation recording → transcribe it (Deepgram) →
-see deterministic metrics → hand a copy-ready prompt to Claude by hand → paste the JSON
-reply back → accumulate an owner profile. **The platform never calls an LLM itself**
-(that's the v1 stop line — analysis happens by copy-paste into Claude chat).
+A private, local, multi-user tool: upload a conversation recording → transcribe it (Deepgram) → see deterministic metrics → automatically analyze it via Gemini 2.5 Flash → accumulate an owner profile and refresh overall insights via Gemini 2.5 Pro.
+
+Includes local user authentication (passlib/JWT) to support multiple users securely.
 
 ## Requirements
 
-- Windows, Python 3.12 available as `py -3.12` (the venv intentionally uses 3.12, not 3.14).
+- Python 3.11/3.12.
 - A Deepgram API key in `.env` at the project root: `DEEPGRAM_API_KEY=<value>`.
-  (`.env` is git-ignored and the key is never logged or printed.)
+- A Gemini API key in `.env` at the project root: `GEMINI_API_KEY=<value>`.
+  (`.env` is git-ignored and the keys are never logged or printed.)
 
 ## Setup
 
 ```bash
-py -3.12 -m venv .venv
-./.venv/Scripts/python.exe -m pip install -r requirements.txt
-cp .env.example .env   # then fill in DEEPGRAM_API_KEY
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .\.venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env       # then fill in DEEPGRAM_API_KEY and GEMINI_API_KEY
 ```
 
-> **Cloning on another machine?** The repo carries the code only. `.env` (your key),
+> **Cloning on another machine?** The repo carries the code only. `.env` (your keys),
 > `data/` (your recordings + SQLite DB), and `.venv/` are git-ignored and are **not**
 > included. A fresh empty `data/app.db` is created on first run, so the app starts with
 > no recordings or profile — that's expected, nothing is broken. To move your actual
-> data across, copy the `data/` folder by hand; never push it. See `CLAUDE.md` →
+> data across, copy the `data/` folder by hand; never push it. See `AGENT_RULES.md` →
 > "Fresh clone on a new machine" for the full list.
 
 ## Run
@@ -34,15 +35,16 @@ cp .env.example .env   # then fill in DEEPGRAM_API_KEY
 
 Then open http://127.0.0.1:8000/ . Bound to loopback only — it is not network-exposed.
 
-## The flow (7 screens)
+## The flow
 
-1. **Upload** an `.mp3` / `.m4a` / `.wav`.
-2. **Categorize** — conversation type, your role, optional objective/context.
-3. **Transcribing** — a spinner polls until Deepgram finishes.
-4. **Speaker tag** — mark which separated voice is you (the only tag that matters).
-5. **Metrics + transcript** — hard numbers computed in Python, plus the full transcript.
-6. **Analyze** — copy the generated prompt into a Claude chat, paste Claude's JSON back.
-7. **Result** — the rendered analysis; your **/profile** accumulates across conversations.
+1. **Register / Login** — secure access using local user authentication.
+2. **Upload** an `.mp3` / `.m4a` / `.wav`.
+3. **Categorize** — conversation type, your role, optional objective/context.
+4. **Transcribing** — a spinner polls until Deepgram finishes.
+5. **Speaker tag** — mark which separated voice is you (the only tag that matters).
+6. **Metrics + transcript** — hard numbers computed in Python, plus the full transcript.
+7. **Analyze** — automatically generate structured conversation analysis using Gemini 2.5 Flash.
+8. **Result** — the rendered analysis; your **/profile** accumulates across conversations. Refresh overall insights at any time using Gemini 2.5 Pro.
 
 ## Tests
 
@@ -50,13 +52,11 @@ Then open http://127.0.0.1:8000/ . Bound to loopback only — it is not network-
 ./.venv/Scripts/python.exe -m pytest -q
 ```
 
-Unit tests cover the deterministic metrics, filler handling, the profile merge, the §10
-schema validation, and Deepgram response parsing (via a mock fixture — no API spend).
+Unit and integration tests cover the deterministic metrics, filler handling, profile merge, Pydantic schema validation, Deepgram response parsing, and Gemini client functionality.
 
 ## Configuration
 
-`app/config.py` — upload limits, the long-pause threshold, and `KEYTERMS` (empty in v1;
-add domain vocabulary there to enable Deepgram keyterm prompting later).
+`app/config.py` — upload limits, the long-pause threshold, and `KEYTERMS` (add domain vocabulary there to enable Deepgram keyterm prompting).
 
 ## Notable design points
 
@@ -64,10 +64,9 @@ add domain vocabulary there to enable Deepgram keyterm prompting later).
   diarization, utterances, filler words; native sentiment/topics/intents are OFF.
 - Metrics are always computed in Python, never by an LLM.
 - Only **your** utterances ever feed the owner profile; other participants are never profiled.
-- Filler handling splits hesitation sounds (stripped from the Claude transcript and counted)
+- Filler handling splits hesitation sounds (stripped from the LLM transcript and counted)
   from meaning-bearing discourse markers like *cioè*/*insomma*/*tipo* (always kept, never counted).
 
-## Not built in v1 (deferred by spec §13)
+## Deferred Features (Future Roadmap)
 
-No Claude API automation, no voiceprints/cross-file speaker identity, no non-owner profiling,
-no streaming. These come after validating transcript quality and prompt output.
+No voiceprints/cross-file speaker identity, no non-owner profiling, no live streaming. These can be considered after validating transcript quality and prompt output.

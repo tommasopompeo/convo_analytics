@@ -1,8 +1,8 @@
 # Audio Intelligence — project context
 
-> Private, local, single-user tool. Upload a recording of one of *your own*
+> Private, local, multi-user tool. Upload a recording of one of *your own*
 > conversations → transcribe it (Deepgram) → see deterministic metrics → reflect
-> on it with Claude → accumulate a portrait of yourself across all conversations.
+> on it with an AI Assistant → accumulate a portrait of yourself across all conversations.
 > Identity: **"a quiet study at dusk"** — calm, private, everything stays on this
 > computer. The corpus is **Italian** (with occasional English).
 
@@ -15,12 +15,12 @@ up. The design rationale and decisions live below; for the original v1 build con
 ## Current status (2026-07-14)
 
 - **v1 prototype**: complete to the spec's manual stop line (upload → transcribe →
-  categorize → speaker-tag → metrics → manual Claude paste loop → owner profile).
+  categorize → speaker-tag → metrics → manual copy-paste loop → owner profile).
 - **Aggregate synthesis (Stage 1)**: **built** — a genuine cross-corpus portrait on
   `/profile`, produced by a manual paste loop that mirrors the per-conversation one.
   This replaced the old last-write-wins archetype. No API key required.
 - **Per-conversation view + metrics**: **trimmed** to "few but solid" (see decisions).
-- **Stage 2 (API automation + multi-user)**: **in progress** — automating API analysis via Gemini and adding support for multi-user capabilities.
+- **Stage 2 (API automation + multi-user + local auth)**: **complete** — automated API analysis via Gemini, multi-user support, and local user authentication.
 
 The app is run locally on `http://127.0.0.1:8000/` (loopback only, never exposed).
 
@@ -30,10 +30,12 @@ The app is run locally on `http://127.0.0.1:8000/` (loopback only, never exposed
 
 - **Backend**: FastAPI + SQLite (`data/app.db`), server-rendered Jinja2 templates,
   vanilla JS (`static/js/app.js`). Python 3.12 in `.venv`.
+- **Authentication**: Local user authentication using `passlib` for password hashing and JWT (JSON Web Tokens) for session management.
 - **Transcription**: Deepgram `nova-3`. Config in `app/config.py`
   (`LANGUAGE` defaults to `multi`; for this all-Italian corpus set
   `DEEPGRAM_LANGUAGE=it` in `.env` — a single tight language model beats hedging
   across 10 languages. `KEYTERMS` holds the corpus's proper nouns/jargon).
+- **AI Automation**: Powered by Gemini 2.5 Flash (single analysis via `analyze_conversation_async`) and Gemini 2.5 Pro (aggregate profile refresh via `synthesize_profile_async`).
 - **Design contract**: `static/css/tokens.css` (the `:root` token block — single
   source of truth) + `static/css/app.css` (component recipes). Fraunces serif +
   warm paper + one ink-teal accent. **Never change existing token values**; add new
@@ -44,18 +46,21 @@ The app is run locally on `http://127.0.0.1:8000/` (loopback only, never exposed
 |------|------|
 | `main.py` | FastAPI app + router mounts + `init_db()` on startup |
 | `db.py` | SQLite schema (idempotent) + migrations + connection helper |
+| `auth.py` | JWT token and user authentication utility functions |
 | `config.py` | paths, upload limits, `LONG_PAUSE_SEC`, Deepgram `LANGUAGE`/`KEYTERMS`, key loader |
 | `deepgram_client.py` / `background.py` | transcription call + off-request-path job |
+| `gemini_client.py` | Gemini 2.5 Flash and Gemini 2.5 Pro async API clients |
 | `metrics.py` | deterministic per-speaker + conversation metrics (pure Python, no LLM) |
 | `fillers.py` | strips non-lexical hesitation sounds; keeps meaning-bearing discourse markers |
 | `prompt_builder.py` | `build_prompt` (§10 per-conversation) + `build_aggregate_prompt` (cross-corpus) |
 | `models.py` | `AnalysisOutput` (§10) + `AggregateOutput` (aggregate) Pydantic contracts |
 | `profile_merge.py` | per-conversation owner-profile accumulation (dedupe-union; still used) |
 | `aggregate_merge.py` | corpus bundle builder + aggregate store/load (the Stage-1 engine) |
-| `web.py` | Jinja templates instance, `db_dep`, small query helpers |
+| `web.py` | Jinja templates instance, `db_dep`, user extraction, small query helpers |
+| `routes/auth.py` | authentication endpoints (login, logout, register) |
 | `routes/uploads.py` | home/library, upload, categorize, transcribing, delete, status |
 | `routes/transcripts.py` | speaker tagging + metrics/transcript view |
-| `routes/analysis.py` | per-conversation paste loop, result view, `/profile`, `/profile/refresh` |
+| `routes/analysis.py` | per-conversation automatic analysis, result view, `/profile`, `/profile/refresh` |
 
 ---
 
@@ -97,7 +102,7 @@ latest read.
 `aggregate_merge.build_corpus_bundle()` → `prompt_builder.build_aggregate_prompt()`,
 which bundles every analysed conversation's interpretive layer (summary, key_topics,
 sentiment, owner_insights) + the three surviving metrics + authoritative corpus
-counts, and asks Claude to synthesise. The user pastes it into Claude, pastes back an
+counts, and asks the AI Assistant to synthesise. The user pastes it into the AI Assistant, pastes back an
 `AggregateOutput` JSON; it's validated and stored in `aggregate_insight`, and rendered
 as the `/profile` centerpiece.
 
@@ -107,12 +112,7 @@ presents by setting — the differentiator only the corpus reveals) · `recurrin
 (weighted by conversation_count, not a flat union) · `tensions` (say-vs-do) ·
 `drift` (how the read evolved) · `archetype` · `confidence` · `corpus_meta`.
 
-**Stage 2 (target, gated on API key):** same prompt + same schema, called by the
-platform. Two call sites — per-conversation at `/analyze`, and aggregate re-synthesis
-after each upload. **Cadence = hybrid**: cheap *incremental* update every upload
-(new conversation + current aggregate), periodic *full* re-synthesis on demand and
-every **N=5** recordings. Invariant: manual and API paths share the identical
-prompt+schema, so automating changes only the caller.
+**Stage 2 (complete):** Same prompt + same schema, called directly by the application. Powered by Gemini 2.5 Flash (single analysis via `analyze_conversation_async`) and Gemini 2.5 Pro (aggregate profile refresh via `synthesize_profile_async`). Two call sites — per-conversation automatic analysis at `/transcripts/{id}/analyze`, and aggregate re-synthesis at `/profile/refresh`.
 
 ---
 
@@ -139,7 +139,7 @@ prompt+schema, so automating changes only the caller.
   only two new warm-neutral values). The accent still marks exactly one series per
   view (you), honouring the ≤2-accent cap. Recipes: `.share`, `.corpus-stats`,
   `.register`, `.freq`, `.tension`, `.timeline`, `.showed-up`, `.record-open`.
-- **"Mojibake" was a non-bug** — the DB stores clean UTF-8; the `�` seen once was a
+- **"Mojibake" was a non-bug** — the DB stores clean UTF-8; the `` seen once was a
   Windows-terminal rendering artifact.
 
 ---
@@ -148,9 +148,9 @@ prompt+schema, so automating changes only the caller.
 
 ```bash
 # run (loopback only — never network-exposed)
-./.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+. / .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 # test
-./.venv/Scripts/python.exe -m pytest -q      # 29 tests: metrics, fillers, profile merge, §10 schema, Deepgram parse
+. / .venv/Scripts/python.exe -m pytest -q      # tests: metrics, fillers, profile merge, schema, Deepgram parse, Gemini API
 ```
 
 Windows note: kill a stale server with PowerShell
@@ -181,13 +181,13 @@ look empty on a new machine, this is why — nothing is broken.
 
 ## Guardrails
 
-- **Never** log/print the Deepgram key; read it from `.env` at runtime only. `.env` is
+- **Never** log/print the Deepgram or Gemini keys; read them from `.env` at runtime only. `.env` is
   git-ignored.
 - Loopback-only; the tool must never be network-exposed.
 - Preserve the offline/private identity in all copy — the only sanctioned outbound is
-  the (still-manual) Claude paste loop, and later the sanctioned Claude API call, both
+  the (still-manual) copy-paste loop, and the automatic API calls, both
   framed honestly.
-- Do **not** build the Stage-2 API automation until a key exists and it's requested.
+- Ensure API automation calls use the proper model (Gemini 2.5 Flash for single analysis, Gemini 2.5 Pro for synthesis) and handle API keys securely via the environment.
 - Do not change existing token *values*; add new keys.
 - The user's real conversation data lives in `data/app.db`. Do not ingest generated
   sample analyses into it without explicit say-so; test against a copy.
