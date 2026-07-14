@@ -2,60 +2,82 @@
 {% block title %}Refresh your overall insight · Audio Intelligence{% endblock %}
 {% set nav = 'profile' %}
 {% block content %}
-<div class="page page-wide stack-12 reveal">
-  <div class="stack-3">
-    <p class="eyebrow">Overall insight</p>
-    <h1>Synthesise across all your conversations</h1>
-    <p class="lead">This gathers every conversation you&rsquo;ve reflected on &mdash; {{ corpus_stats.conversation_count }} in
-      all &mdash; into one prompt. Take it to a Claude chat, then bring the synthesis back here. Just like
-      reflecting on a single conversation, one level up: nothing leaves this device on its own, and you
-      see exactly what&rsquo;s shared.</p>
-  </div>
+<div class="page page-flow stack-8 center reveal" style="padding-block: clamp(var(--space-16), 12vh, 140px)">
+  <p class="step" style="justify-content:center">Overall insight · Synthesizing</p>
 
-  <!-- 1. The prompt -->
-  <div class="stack-4">
-    <div class="row-between">
-      <h2 class="h2-sm">1 · Take this to Claude</h2>
-      <button id="copy-prompt" type="button" class="btn btn-primary" data-target="prompt-text">
-        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M13 7V5.5A1.5 1.5 0 0 0 11.5 4h-6A1.5 1.5 0 0 0 4 5.5v6A1.5 1.5 0 0 0 5.5 13H7" stroke="currentColor" stroke-width="1.4"/>
-        </svg>
-        Copy prompt
-      </button>
+  <div id="synthesizer" style="display:flex; flex-direction:column; align-items:center; gap:var(--space-8)">
+    <div class="breathe">
+      <div id="spinner" class="spinner" aria-hidden="true"></div>
     </div>
-    <pre id="prompt-text" class="code-box">{{ prompt }}</pre>
-  </div>
 
-  <!-- 2. Paste back -->
-  <div class="stack-4">
-    <h2 class="h2-sm">2 · Bring the synthesis back</h2>
-
-    {% if error %}
-    <div class="notice notice-error">
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <div>
-        {{ error }}
-        {% if field_errors %}
-        <ul>{% for fe in field_errors %}<li>{{ fe }}</li>{% endfor %}</ul>
-        {% endif %}
-      </div>
+    <div class="stack-3" style="max-width: 48ch">
+      <h1 id="status-label">Synthesizing your profile</h1>
+      <p class="lead" id="status-desc">Gemini is analyzing your {{ corpus_stats.conversation_count }} conversations to draw lines, recurring themes, and update your portrait. This might take 10-15 seconds. Please keep this window open.</p>
     </div>
-    {% endif %}
 
-    <form class="stack-4" action="/profile/refresh" method="post">
-      <div class="field">
-        <label for="aggregate_json">Claude&rsquo;s JSON response</label>
-        <textarea id="aggregate_json" name="aggregate_json" class="mono"
-                  placeholder="Paste the aggregate JSON object Claude returns…"
-                  spellcheck="false">{{ pasted_text }}</textarea>
-        <p class="field-help">It should be a single JSON object. Code fences (```) are removed for you.</p>
-      </div>
-      <div class="row-between" style="gap: var(--space-4)">
-        <a href="/profile" class="btn btn-ghost">&larr; Back to your profile</a>
-        <button type="submit" class="btn btn-primary btn-lg">Save synthesis</button>
-      </div>
-    </form>
+    <div id="status-error" class="notice notice-error" style="display:none; text-align:left; width:100%">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <div id="error-text"></div>
+    </div>
+
+    <div class="row" style="gap: var(--space-4)">
+      <a id="back-btn" class="btn btn-secondary" href="/profile" style="display:none">Back to profile</a>
+      <button id="retry-btn" class="btn btn-primary" style="display:none">Try again</button>
+    </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const spinner = document.getElementById('spinner');
+  const label = document.getElementById('status-label');
+  const desc = document.getElementById('status-desc');
+  const errorDiv = document.getElementById('status-error');
+  const errorText = document.getElementById('error-text');
+  const backBtn = document.getElementById('back-btn');
+  const retryBtn = document.getElementById('retry-btn');
+
+  async function startSynthesis() {
+    // Reset state
+    errorDiv.style.display = 'none';
+    errorText.textContent = '';
+    backBtn.style.display = 'none';
+    retryBtn.style.display = 'none';
+    spinner.style.display = 'block';
+    label.textContent = 'Synthesizing your profile';
+    desc.textContent = 'Gemini is analyzing your {{ corpus_stats.conversation_count }} conversations to draw lines, recurring themes, and update your portrait. This might take 10-15 seconds. Please keep this window open.';
+
+    try {
+      const response = await fetch('/profile/refresh', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (response.ok && data.status === 'success') {
+        window.location.href = '/profile';
+      } else {
+        throw new Error(data.error || 'Failed to synthesize profile. Please check configuration.');
+      }
+    } catch (err) {
+      spinner.style.display = 'none';
+      label.textContent = 'Synthesis failed';
+      desc.textContent = 'Something went wrong during the analysis process.';
+      errorText.textContent = err.message;
+      errorDiv.style.display = 'flex';
+      backBtn.style.display = 'inline-block';
+      retryBtn.style.display = 'inline-block';
+    }
+  }
+
+  retryBtn.addEventListener('click', startSynthesis);
+  startSynthesis();
+});
+</script>
 {% endblock %}

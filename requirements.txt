@@ -6,3 +6,6 @@ python-multipart
 pydantic>=2
 deepgram-sdk
 pytest
+google-generativeai
+passlib[bcrypt]
+python-jose[cryptography]

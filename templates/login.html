@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Log in — Audio Intelligence{% endblock %}
+
+{% block content %}
+<div class="page page-flow center stack-6" style="margin-block-start: var(--space-8);">
+  <div class="header-group text-center">
+    <h1>Welcome Back</h1>
+    <p class="measure text-muted" style="margin-inline: auto;">Sign in to access your private conversation audio library and reflections.</p>
+  </div>
+
+  <div class="card stack-4" style="max-width: 400px; width: 100%; margin-inline: auto; padding: var(--space-6); background: var(--surface-warm); border: 1.2px solid var(--border); border-radius: var(--radius-md);">
+    {% if error %}
+      <div class="notice notice-error" style="margin-bottom: var(--space-4);">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="width: 18px; height: 18px; flex: none;">
+          <circle cx="8" cy="8" r="6.25"/>
+          <line x1="8" y1="5" x2="8" y2="8.5"/>
+          <circle cx="8" cy="11" r="0.75" fill="currentColor"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+    {% endif %}
+
+    <form action="/login" method="post" class="stack-4">
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username" placeholder="e.g. tommaso" autofocus style="width: 100%;" />
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••" style="width: 100%;" />
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; justify-content: center; margin-top: var(--space-2);">Log in</button>
+    </form>
+
+    <div class="text-center" style="margin-top: var(--space-4); font-size: var(--text-sm);">
+      <span class="text-muted">Don't have an account?</span>
+      <a href="/register" style="color: var(--accent); font-weight: 500; text-decoration: underline;">Register</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

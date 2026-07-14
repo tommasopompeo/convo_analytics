@@ -1,59 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Reflect with Claude · Audio Intelligence{% endblock %}
+{% block title %}Reflect with Gemini · Audio Intelligence{% endblock %}
 {% set nav = 'recordings' %}
 {% block content %}
-<div class="page page-wide stack-12 reveal">
-  <div class="stack-3">
-    <p class="eyebrow">Reflection</p>
-    <h1>Reflect with Claude, on your terms</h1>
-    <p class="lead">Copy the prompt below, paste it into a Claude chat, then bring Claude’s
-      reply back here. Nothing leaves this device on its own — you carry each step across
-      by hand, and you see exactly what’s shared.</p>
-  </div>
+<div class="page page-flow stack-8 center reveal" style="padding-block: clamp(var(--space-16), 12vh, 140px)">
+  <p class="step" style="justify-content:center"><span class="step-n">05</span> of 05 · Reflection</p>
 
-  <!-- 1. The prompt -->
-  <div class="stack-4">
-    <div class="row-between">
-      <h2 class="h2-sm">1 · Take this to Claude</h2>
-      <button id="copy-prompt" type="button" class="btn btn-primary" data-target="prompt-text">
-        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <rect x="7" y="7" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M13 7V5.5A1.5 1.5 0 0 0 11.5 4h-6A1.5 1.5 0 0 0 4 5.5v6A1.5 1.5 0 0 0 5.5 13H7" stroke="currentColor" stroke-width="1.4"/>
-        </svg>
-        Copy prompt
-      </button>
+  <!-- Ready to start analysis -->
+  <div id="ready-state" class="stack-6" style="display:flex; flex-direction:column; align-items:center; gap:var(--space-8); width:100%">
+    <div class="stack-3" style="max-width: 48ch; text-align: center">
+      <h1 id="status-label">Reflect with Gemini</h1>
+      <p class="lead">Analyze the tone, topics, and dynamics of this conversation using the Gemini API. This will generate insights and update your communication profile.</p>
     </div>
-    <pre id="prompt-text" class="code-box">{{ prompt }}</pre>
-  </div>
-
-  <!-- 2. Paste back -->
-  <div class="stack-4">
-    <h2 class="h2-sm">2 · Bring the reply back</h2>
 
     {% if error %}
-    <div class="notice notice-error">
+    <div class="notice notice-error" style="text-align:left; width:100%; max-width: 48ch">
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v5M10 13.4v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <div>
         {{ error }}
-        {% if field_errors %}
-        <ul>{% for fe in field_errors %}<li>{{ fe }}</li>{% endfor %}</ul>
-        {% endif %}
       </div>
     </div>
     {% endif %}
 
-    <form class="stack-4" action="/transcripts/{{ transcript_id }}/analyze" method="post">
-      <div class="field">
-        <label for="analysis_json">Claude’s JSON response</label>
-        <textarea id="analysis_json" name="analysis_json" class="mono"
-                  placeholder="Paste the JSON object Claude returns…"
-                  spellcheck="false">{{ pasted_text }}</textarea>
-        <p class="field-help">It should be a single JSON object. Code fences (```) are removed for you.</p>
-      </div>
-      <div>
-        <button type="submit" class="btn btn-primary btn-lg">Save reflection</button>
-      </div>
+    <form id="analyze-form" action="/transcripts/{{ transcript_id }}/analyze" method="post" style="display:flex; justify-content:center; width:100%">
+      <button type="submit" class="btn btn-primary btn-lg">Generate reflection</button>
     </form>
   </div>
+
+  <!-- Loading State -->
+  <div id="loading-state" style="display:none; flex-direction:column; align-items:center; gap:var(--space-8); width:100%">
+    <div class="breathe">
+      <div class="spinner" aria-hidden="true"></div>
+    </div>
+
+    <div class="stack-3" style="max-width: 42ch; text-align: center">
+      <h1>Analyzing conversation...</h1>
+      <p class="lead">Gemini is extracting communication patterns, sentiment dynamics, and updating your profile. This will take a moment.</p>
+    </div>
+  </div>
 </div>
+
+<script>
+  (function () {
+    "use strict";
+    const form = document.getElementById("analyze-form");
+    if (form) {
+      form.addEventListener("submit", function () {
+        document.getElementById("ready-state").style.display = "none";
+        document.getElementById("loading-state").style.display = "flex";
+      });
+    }
+  })();
+</script>
 {% endblock %}

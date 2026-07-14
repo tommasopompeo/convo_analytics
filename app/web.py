@@ -7,13 +7,20 @@ import json
 import sqlite3
 from typing import Any, Optional
 
+from fastapi import Cookie, Depends, Request
 from fastapi.templating import Jinja2Templates
 
 from . import config
+from .auth import decode_access_token
 from .db import get_conn
 from .profile_merge import empty_profile
 
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
+
+
+class UnauthenticatedException(Exception):
+    """Exception raised when an endpoint requires an authenticated user but none is found."""
+    pass
 
 
 def fmt_ts(seconds) -> str:
@@ -43,9 +50,39 @@ def db_dep():
         conn.close()
 
 
-def load_current_profile(conn: sqlite3.Connection) -> dict[str, Any]:
+def get_current_user_optional(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+    conn=Depends(db_dep),
+) -> Optional[dict[str, Any]]:
+    """FastAPI dependency that returns the currently logged-in user, or None if unauthenticated."""
+    if not session_token:
+        return None
+    payload = decode_access_token(session_token)
+    if not payload or "sub" not in payload:
+        return None
+    username = payload["sub"]
     row = conn.execute(
-        "SELECT profile_json FROM owner_profile ORDER BY id DESC LIMIT 1"
+        "SELECT id, username FROM users WHERE username = ?", (username,)
+    ).fetchone()
+    if not row:
+        return None
+    return dict(row)
+
+
+def get_current_user(
+    user: Optional[dict[str, Any]] = Depends(get_current_user_optional),
+) -> dict[str, Any]:
+    """FastAPI dependency that requires a logged-in user, raising UnauthenticatedException if missing."""
+    if not user:
+        raise UnauthenticatedException()
+    return user
+
+
+def load_current_profile(conn: sqlite3.Connection, user_id: int) -> dict[str, Any]:
+    row = conn.execute(
+        "SELECT profile_json FROM owner_profile WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+        (user_id,),
     ).fetchone()
     if row:
         return json.loads(row["profile_json"])
@@ -67,3 +104,4 @@ def load_utterances(conn: sqlite3.Connection, transcript_id: int) -> list[dict[s
         (transcript_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+

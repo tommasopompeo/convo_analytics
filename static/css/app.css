@@ -1050,3 +1050,27 @@ kbd {
   .reveal-hero > *:nth-child(2) { animation-delay: 200ms; }  /* cta pill */
   .reveal-hero > *:nth-child(3) { animation-delay: 320ms; }  /* lead copy */
 }
+
+/* User Greeting & Logout Button styling in navigation */
+.nav-links .user-greeting {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  display: inline-block;
+  padding-block: var(--space-1);
+}
+.nav-links button.logout-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--transition-fast) var(--ease-out);
+}
+.nav-links button.logout-button:hover {
+  color: var(--fg);
+}
+

@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
 from .db import init_db
-from .routes import analysis, transcripts, uploads
+from .routes import analysis, auth, transcripts, uploads
+from .web import UnauthenticatedException
 
 
 @asynccontextmanager
@@ -24,10 +26,19 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Audio Intelligence — Prototype v1", lifespan=lifespan)
+app = FastAPI(title="Audio Intelligence", lifespan=lifespan)
+
+
+@app.exception_handler(UnauthenticatedException)
+async def unauthenticated_exception_handler(request: Request, exc: UnauthenticatedException):
+    """Globally catch unauthenticated user exceptions and redirect to login page."""
+    return RedirectResponse(url="/login", status_code=303)
+
 
 app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static")
 
+app.include_router(auth.router)
 app.include_router(uploads.router)
 app.include_router(transcripts.router)
 app.include_router(analysis.router)
+

@@ -12,7 +12,7 @@ up. The design rationale and decisions live below; for the original v1 build con
 
 ---
 
-## Current status (2026-07-09)
+## Current status (2026-07-14)
 
 - **v1 prototype**: complete to the spec's manual stop line (upload → transcribe →
   categorize → speaker-tag → metrics → manual Claude paste loop → owner profile).
@@ -20,8 +20,7 @@ up. The design rationale and decisions live below; for the original v1 build con
   `/profile`, produced by a manual paste loop that mirrors the per-conversation one.
   This replaced the old last-write-wins archetype. No API key required.
 - **Per-conversation view + metrics**: **trimmed** to "few but solid" (see decisions).
-- **Stage 2 (Claude API automation)**: **not built — gated on an API key.** The
-  prompts + schemas are already shaped so automating is only a change of *caller*.
+- **Stage 2 (API automation + multi-user)**: **in progress** — automating API analysis via Gemini and adding support for multi-user capabilities.
 
 The app is run locally on `http://127.0.0.1:8000/` (loopback only, never exposed).
 
@@ -166,9 +165,9 @@ A `git clone` gives you the **code only**. Three things are git-ignored and must
 recreated locally (this is intentional — the repo is public and carries no secrets or
 personal data):
 
-- **`.env`** — the Deepgram API key. Copy `.env.example` → `.env` and fill in
-  `DEEPGRAM_API_KEY` (optionally `DEEPGRAM_LANGUAGE=it`). Without it, transcription
-  fails. The key is never logged/printed.
+- **`.env`** — the Deepgram and Gemini API keys. Copy `.env.example` → `.env` and fill in
+  `DEEPGRAM_API_KEY` and `GEMINI_API_KEY` (optionally `DEEPGRAM_LANGUAGE=it`). Without them, transcription
+  and AI analysis fail. The keys are never logged/printed.
 - **`data/`** — the SQLite DB (`app.db`) + audio blobs: the user's real recordings,
   transcripts, analyses, and accumulated profile. A fresh **empty** `app.db` is created
   automatically on first run (`init_db()`), so the app works but starts with **zero

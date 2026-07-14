@@ -27,8 +27,19 @@
         </a>
         <nav aria-label="Primary">
           <ul class="nav-links">
-            <li><a href="/" {% if nav == 'recordings' %}aria-current="page"{% endif %}>Recordings</a></li>
-            <li><a href="/profile" {% if nav == 'profile' %}aria-current="page"{% endif %}>Profile</a></li>
+            {% if user %}
+              <li><span class="user-greeting">Ciao, {{ user.username }}</span></li>
+              <li><a href="/" {% if nav == 'recordings' %}aria-current="page"{% endif %}>Recordings</a></li>
+              <li><a href="/profile" {% if nav == 'profile' %}aria-current="page"{% endif %}>Profile</a></li>
+              <li>
+                <form action="/logout" method="post" style="display:inline;">
+                  <button type="submit" class="logout-button">Log out</button>
+                </form>
+              </li>
+            {% else %}
+              <li><a href="/login">Login</a></li>
+              <li><a href="/register">Register</a></li>
+            {% endif %}
           </ul>
         </nav>
       </div>

@@ -38,8 +38,16 @@ def get_conn() -> sqlite3.Connection:
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at    TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS audio_files (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id              INTEGER REFERENCES users(id),
     path                 TEXT NOT NULL,
     filename             TEXT NOT NULL,
     uploaded_at          TEXT NOT NULL,
@@ -88,6 +96,7 @@ CREATE TABLE IF NOT EXISTS analyses (
 
 CREATE TABLE IF NOT EXISTS owner_profile (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER REFERENCES users(id),
     profile_json    TEXT NOT NULL,
     archetype       TEXT,
     archetype_notes TEXT,
@@ -102,6 +111,7 @@ CREATE TABLE IF NOT EXISTS owner_profile (
 -- synthesis covered so the portrait stays auditable.
 CREATE TABLE IF NOT EXISTS aggregate_insight (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER REFERENCES users(id),
     insight_json        TEXT NOT NULL,
     archetype           TEXT,
     synthesis_type      TEXT NOT NULL DEFAULT 'manual',
@@ -124,10 +134,29 @@ def _migrate(conn: sqlite3.Connection) -> None:
     to SCHEMA above won't appear on a pre-existing `audio_files`. Add it here,
     guarded by a check so re-running is a no-op.
     """
+    # Migrate audio_files
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(audio_files)")}
     if "single_sided" not in cols:
         conn.execute(
             "ALTER TABLE audio_files ADD COLUMN single_sided INTEGER NOT NULL DEFAULT 0"
+        )
+    if "user_id" not in cols:
+        conn.execute(
+            "ALTER TABLE audio_files ADD COLUMN user_id INTEGER REFERENCES users(id)"
+        )
+
+    # Migrate owner_profile
+    profile_cols = {r["name"] for r in conn.execute("PRAGMA table_info(owner_profile)")}
+    if "user_id" not in profile_cols:
+        conn.execute(
+            "ALTER TABLE owner_profile ADD COLUMN user_id INTEGER REFERENCES users(id)"
+        )
+
+    # Migrate aggregate_insight
+    insight_cols = {r["name"] for r in conn.execute("PRAGMA table_info(aggregate_insight)")}
+    if "user_id" not in insight_cols:
+        conn.execute(
+            "ALTER TABLE aggregate_insight ADD COLUMN user_id INTEGER REFERENCES users(id)"
         )
 
 
@@ -155,3 +184,4 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
+

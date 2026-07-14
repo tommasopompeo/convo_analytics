@@ -1,8 +1,8 @@
 """Application configuration.
 
-Loads the local `.env` (which holds DEEPGRAM_API_KEY) and exposes paths and
-tunable constants. The API key is read from the environment on demand and is
-NEVER printed, logged, or written to disk (spec §3a).
+Loads the local `.env` (which holds DEEPGRAM_API_KEY and GEMINI_API_KEY) and exposes paths and
+tunable constants. The API keys are read from the environment on demand and are
+NEVER printed, logged, or written to disk.
 """
 from __future__ import annotations
 
@@ -74,6 +74,26 @@ def get_deepgram_api_key() -> str:
     return key
 
 
+def get_gemini_api_key() -> str:
+    """Return the Gemini API key from the environment.
+
+    Raises a clear error if missing. The key value is never included in the
+    error message or any log line.
+    """
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not set. Create a .env file at the project "
+            "root containing GEMINI_API_KEY=<value>."
+        )
+    return key
+
+
+# ── Authentication ─────────────────────────────────────────────────────────
+JWT_SECRET: str = os.environ.get("JWT_SECRET", "local-development-secret-key-change-in-production")
+
+
 def ensure_dirs() -> None:
     """Create local data directories if they do not exist."""
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+

@@ -56,7 +56,7 @@ def _fmt_dur(seconds: float) -> str:
     return f"{total // 60}m {total % 60:02d}s"
 
 
-def build_corpus_bundle(conn) -> tuple[list[dict[str, Any]], dict[str, Any], Optional[dict[str, Any]]]:
+def build_corpus_bundle(conn, user_id: int) -> tuple[list[dict[str, Any]], dict[str, Any], Optional[dict[str, Any]]]:
     """Assemble everything the aggregate prompt needs from the DB.
 
     Returns (conversations, corpus_stats, current_aggregate). Each conversation
@@ -73,8 +73,10 @@ def build_corpus_bundle(conn) -> tuple[list[dict[str, Any]], dict[str, Any], Opt
           FROM analyses an
           JOIN transcripts t   ON t.id = an.transcript_id
           JOIN audio_files af  ON af.id = t.audio_file_id
+         WHERE af.user_id = ?
          ORDER BY an.created_at ASC, an.id ASC
-        """
+        """,
+        (user_id,)
     ).fetchall()
 
     conversations: list[dict[str, Any]] = []
@@ -124,7 +126,7 @@ def build_corpus_bundle(conn) -> tuple[list[dict[str, Any]], dict[str, Any], Opt
         "date_range": [min(dates), max(dates)] if dates else [],
         "source_analysis_ids": source_ids,
     }
-    return conversations, corpus_stats, load_latest_aggregate(conn)
+    return conversations, corpus_stats, load_latest_aggregate(conn, user_id)
 
 
 def short_ref(filename: str, analysis_id: int) -> str:
@@ -133,17 +135,18 @@ def short_ref(filename: str, analysis_id: int) -> str:
     return stem or f"analysis-{analysis_id}"
 
 
-def store_aggregate(conn, aggregate: dict[str, Any], *, synthesis_type: str,
+def store_aggregate(conn, user_id: int, aggregate: dict[str, Any], *, synthesis_type: str,
                     source_analysis_ids: list[int], conversation_count: int) -> int:
     """Append a new aggregate_insight row and return its id."""
     cur = conn.execute(
         """
         INSERT INTO aggregate_insight
-            (insight_json, archetype, synthesis_type, conversation_count,
+            (user_id, insight_json, archetype, synthesis_type, conversation_count,
              source_analysis_ids, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            user_id,
             json.dumps(aggregate, ensure_ascii=False),
             aggregate.get("archetype", ""),
             synthesis_type,
@@ -156,10 +159,11 @@ def store_aggregate(conn, aggregate: dict[str, Any], *, synthesis_type: str,
     return cur.lastrowid
 
 
-def load_latest_aggregate(conn) -> Optional[dict[str, Any]]:
+def load_latest_aggregate(conn, user_id: int) -> Optional[dict[str, Any]]:
     """The most recent aggregate synthesis, or None if none exists yet."""
     row = conn.execute(
-        "SELECT insight_json, created_at FROM aggregate_insight ORDER BY id DESC LIMIT 1"
+        "SELECT insight_json, created_at FROM aggregate_insight WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+        (user_id,)
     ).fetchone()
     if not row:
         return None
@@ -169,3 +173,4 @@ def load_latest_aggregate(conn) -> Optional[dict[str, Any]]:
         return None
     data["_created_at"] = row["created_at"]
     return data
+
