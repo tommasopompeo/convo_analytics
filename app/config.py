@@ -89,6 +89,12 @@ def get_gemini_api_key() -> str:
     return key
 
 
+# ── Gemini Models ──────────────────────────────────────────────────────────
+# Default models: gemini-3.5-flash for both, but customizable via environment.
+GEMINI_ANALYSIS_MODEL: str = os.environ.get("GEMINI_ANALYSIS_MODEL", "gemini-3.5-flash")
+GEMINI_SYNTHESIS_MODEL: str = os.environ.get("GEMINI_SYNTHESIS_MODEL", "gemini-3.5-flash")
+
+
 # ── Authentication ─────────────────────────────────────────────────────────
 JWT_SECRET: str = os.environ.get("JWT_SECRET", "local-development-secret-key-change-in-production")
 

@@ -10,6 +10,7 @@ from app.main import app
 from app.db import SCHEMA, _migrate
 from app.web import db_dep
 from app.auth import hash_password
+from app import config
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ async def test_analyze_conversation_async_success():
         result = await analyze_conversation_async("some prompt")
 
         mock_configure.assert_called_once_with(api_key="fake-api-key")
-        mock_class_init.assert_called_once_with("gemini-2.5-flash")
+        mock_class_init.assert_called_once_with(config.GEMINI_ANALYSIS_MODEL)
         mock_model.generate_content_async.assert_called_once()
 
         assert isinstance(result, AnalysisOutput)
@@ -208,7 +209,7 @@ async def test_synthesize_profile_async_success():
         result = await synthesize_profile_async("some prompt")
 
         mock_configure.assert_called_once_with(api_key="fake-api-key")
-        mock_class_init.assert_called_once_with("gemini-2.5-pro")
+        mock_class_init.assert_called_once_with(config.GEMINI_SYNTHESIS_MODEL)
         mock_model.generate_content_async.assert_called_once()
 
         assert isinstance(result, AggregateOutput)
