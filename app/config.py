@@ -21,6 +21,7 @@ load_dotenv(BASE_DIR / ".env")
 # ── Paths ────────────────────────────────────────────────────────────────
 DATA_DIR = BASE_DIR / "data"
 AUDIO_DIR = DATA_DIR / "audio"
+DOCS_DIR = DATA_DIR / "documents"
 DB_PATH = DATA_DIR / "app.db"
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
@@ -102,4 +103,5 @@ JWT_SECRET: str = os.environ.get("JWT_SECRET", "local-development-secret-key-cha
 def ensure_dirs() -> None:
     """Create local data directories if they do not exist."""
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
 

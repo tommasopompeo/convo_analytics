@@ -102,9 +102,9 @@ def test_analyze_endpoint_integration(temp_db):
             "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
             (1, "alice", hash_password("password123"), "2026-07-14T00:00:00Z"),
         )
-        # Seed audio_file
+        # Seed knowledge_entry
         temp_db.execute(
-            "INSERT INTO audio_files (id, user_id, path, filename, uploaded_at, duration_sec, transcription_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO knowledge_entries (id, user_id, path, filename, uploaded_at, duration_sec, transcription_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (1, 1, "test.mp3", "test.mp3", "2026-07-14T00:00:00Z", 10.0, "done"),
         )
         # Seed transcript
@@ -174,8 +174,7 @@ def test_analyze_endpoint_integration(temp_db):
                 "SELECT * FROM owner_profile WHERE user_id = 1"
             ).fetchone()
             assert profile_row is not None
-            assert "Productivity" in profile_row["profile_json"]
-            assert profile_row["archetype"] == "The Builder"
+            assert "Productivity" in profile_row["profile_data"]
 
     finally:
         app.dependency_overrides.clear()
@@ -184,15 +183,11 @@ def test_analyze_endpoint_integration(temp_db):
 @pytest.mark.anyio
 async def test_synthesize_profile_async_success():
     mock_json = """{
-        "portrait": "A synthesized portrait of Alice.",
-        "portrait_evidence": [],
-        "through_lines": [],
-        "shows_up_differently": [],
-        "recurring_themes": [],
-        "tensions": [],
-        "drift": {"summary": "", "points": []},
-        "archetype": "The Architect",
-        "confidence": "high",
+        "who_i_am": "A synthesized portrait of Alice.",
+        "current_issues": [],
+        "recurrent_topics": [],
+        "strong_opinions": [],
+        "tone_and_sentiment": "calm",
         "corpus_meta": {"conversation_count": 1, "synthesis_type": "full", "generated_at": "", "source_analysis_ids": []}
     }"""
 
@@ -213,8 +208,7 @@ async def test_synthesize_profile_async_success():
         mock_model.generate_content_async.assert_called_once()
 
         assert isinstance(result, AggregateOutput)
-        assert result.portrait == "A synthesized portrait of Alice."
-        assert result.archetype == "The Architect"
+        assert result.who_i_am == "A synthesized portrait of Alice."
 
 
 def test_refresh_profile_endpoints_integration(temp_db):
@@ -229,9 +223,9 @@ def test_refresh_profile_endpoints_integration(temp_db):
             "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
             (1, "bob", hash_password("password123"), "2026-07-14T00:00:00Z"),
         )
-        # Seed audio_file
+        # Seed knowledge_entry
         temp_db.execute(
-            "INSERT INTO audio_files (id, user_id, path, filename, uploaded_at, duration_sec, transcription_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO knowledge_entries (id, user_id, path, filename, uploaded_at, duration_sec, transcription_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (1, 1, "test.mp3", "test.mp3", "2026-07-14T00:00:00Z", 10.0, "done"),
         )
         # Seed transcript
@@ -274,15 +268,11 @@ def test_refresh_profile_endpoints_integration(temp_db):
 
         # Mock response from synthesize_profile_async
         mock_aggregate = AggregateOutput.model_validate({
-            "portrait": "A synthesized portrait of Bob.",
-            "portrait_evidence": [],
-            "through_lines": [],
-            "shows_up_differently": [],
-            "recurring_themes": [],
-            "tensions": [],
-            "drift": {"summary": "", "points": []},
-            "archetype": "The Builder",
-            "confidence": "high",
+            "who_i_am": "A synthesized portrait of Bob.",
+            "current_issues": [],
+            "recurrent_topics": [],
+            "strong_opinions": [],
+            "tone_and_sentiment": "calm",
             "corpus_meta": {"conversation_count": 1, "synthesis_type": "full", "generated_at": "", "source_analysis_ids": [1]}
         })
 

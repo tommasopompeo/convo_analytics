@@ -133,16 +133,12 @@ class CorpusMeta(_Base):
 
 
 class AggregateOutput(_Base):
-    """Top-level cross-corpus synthesis. `portrait` and `archetype` are the only
-    hard-required prose; the rest default to empty so a thin-corpus synthesis
-    (few conversations) still validates and renders gracefully."""
-    portrait: str
-    portrait_evidence: list[str] = Field(default_factory=list)
-    through_lines: list[ThroughLine] = Field(default_factory=list)
-    shows_up_differently: list[ShowsUpDifferently] = Field(default_factory=list)
-    recurring_themes: list[RecurringTheme] = Field(default_factory=list)
-    tensions: list[Tension] = Field(default_factory=list)
-    drift: Drift = Field(default_factory=Drift)
-    archetype: str = ""
-    confidence: str = ""             # low | medium | high (free string)
+    """Top-level cross-corpus synthesis. `who_i_am` is the hard-required prose;
+    the rest default to empty so a thin-corpus synthesis still validates and
+    renders gracefully."""
+    who_i_am: str
+    current_issues: list[str] = Field(default_factory=list)
+    recurrent_topics: list[str] = Field(default_factory=list)
+    strong_opinions: list[str] = Field(default_factory=list)
+    tone_and_sentiment: str = ""
     corpus_meta: CorpusMeta = Field(default_factory=CorpusMeta)

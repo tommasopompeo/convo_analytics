@@ -2,12 +2,60 @@
 {% block title %}Upload · Audio Intelligence{% endblock %}
 {% set nav = 'recordings' %}
 {% block content %}
+<style>
+  /* Tabs navigation container */
+  .tabs-nav {
+    display: flex;
+    gap: var(--space-2);
+    border-bottom: 1.5px solid var(--border-soft);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-5);
+  }
+  
+  .tab-button {
+    background: none;
+    border: none;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--muted);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all var(--motion-fast) var(--ease-standard);
+  }
+  
+  .tab-button:hover {
+    color: var(--fg);
+    background: var(--surface);
+  }
+  
+  .tab-button.active {
+    color: var(--accent-on);
+    background: var(--accent);
+  }
+  
+  /* Tab content panel animation */
+  .tab-content {
+    display: none;
+  }
+  
+  .tab-content.active {
+    display: block;
+    animation: fadeIn var(--motion-base) var(--ease-standard);
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
 <div class="page page-flow stack-8 reveal">
   <div class="stack-3">
     <p class="step"><span class="step-n">01</span> of 05 · Upload</p>
-    <h1>Bring in a recording</h1>
-    <p class="lead">Choose an audio file from this computer. It stays here — it isn’t
-      uploaded anywhere else, and only you will ever see it.</p>
+    <h1>Bring in a conversation</h1>
+    <p class="lead">Choose an audio file, upload a text document, or paste plain text. It stays here — it isn’t uploaded anywhere else, and only you will ever see it.</p>
   </div>
 
   {% if error %}
@@ -18,17 +66,96 @@
   {% endif %}
 
   <form class="card card-raised stack-6" action="/upload" method="post" enctype="multipart/form-data">
+    <!-- Date picker -->
     <div class="field">
-      <label for="audio">Audio file</label>
-      <input id="audio" name="audio" type="file" accept=".mp3,.m4a,.wav,audio/*" required />
-      <p class="field-help">MP3, M4A, or WAV — up to 500&nbsp;MB.</p>
+      <label for="recorded_date">Recorded date</label>
+      <input id="recorded_date" name="recorded_date" type="date" value="{{ today }}" required />
+      <p class="field-help">The date the conversation or entry actually occurred.</p>
     </div>
+
+    <!-- Tabs switcher -->
+    <div class="tabs-nav" role="tablist">
+      <button type="button" class="tab-button active" data-tab="audio" role="tab" aria-selected="true" aria-controls="content-audio">Audio File</button>
+      <button type="button" class="tab-button" data-tab="file_text" role="tab" aria-selected="false" aria-controls="content-file_text">Text Document (.txt, .pdf)</button>
+      <button type="button" class="tab-button" data-tab="plain_text" role="tab" aria-selected="false" aria-controls="content-plain_text">Plain Text</button>
+    </div>
+
+    <input type="hidden" name="upload_type" id="upload_type" value="audio" />
+
+    <!-- Audio Tab Content -->
+    <div id="content-audio" class="tab-content active" role="tabpanel">
+      <div class="field">
+        <label for="audio">Audio file</label>
+        <input id="audio" name="audio" type="file" accept=".mp3,.m4a,.wav,audio/*" required />
+        <p class="field-help">MP3, M4A, or WAV — up to 500&nbsp;MB.</p>
+      </div>
+    </div>
+
+    <!-- Document Tab Content -->
+    <div id="content-file_text" class="tab-content" role="tabpanel">
+      <div class="field">
+        <label for="doc">Text or PDF Document</label>
+        <input id="doc" name="doc" type="file" accept=".txt,.pdf" />
+        <p class="field-help">Plain text (.txt) or PDF (.pdf) — up to 50&nbsp;MB.</p>
+      </div>
+    </div>
+
+    <!-- Plain Text Tab Content -->
+    <div id="content-plain_text" class="tab-content" role="tabpanel">
+      <div class="field">
+        <label for="plain_text">Enter conversation text</label>
+        <textarea id="plain_text" name="plain_text" rows="8" placeholder="Paste or type conversation transcript / notes here..."></textarea>
+        <p class="field-help">Enter the transcript text or conversation notes directly.</p>
+      </div>
+    </div>
+
     <div>
       <button type="submit" class="btn btn-primary btn-lg">Continue</button>
     </div>
   </form>
 
-  <p class="body-meta">Your recording and its transcript are stored only in this
-    app’s local folder on this machine.</p>
+  <p class="body-meta">Your conversation and its analysis are stored only in this app’s local folder on this machine.</p>
 </div>
+
+<script>
+  (function() {
+    "use strict";
+    
+    // Fallback date picker default if Jinja rendering doesn't provide it
+    const dateInput = document.getElementById("recorded_date");
+    if (dateInput && !dateInput.value) {
+      dateInput.valueAsDate = new Date();
+    }
+    
+    // Tab switching interaction
+    const tabButtons = document.querySelectorAll(".tab-button");
+    tabButtons.forEach(btn => {
+      btn.addEventListener("click", function(e) {
+        const selectedTab = btn.getAttribute("data-tab");
+        
+        // Update tabs active state
+        tabButtons.forEach(b => {
+          b.classList.remove("active");
+          b.setAttribute("aria-selected", "false");
+        });
+        btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
+        
+        // Update hidden form input
+        document.getElementById("upload_type").value = selectedTab;
+        
+        // Toggle tab content blocks
+        document.querySelectorAll(".tab-content").forEach(content => {
+          content.classList.remove("active");
+        });
+        document.getElementById("content-" + selectedTab).classList.add("active");
+        
+        // Toggle input 'required' attributes
+        document.getElementById("audio").required = (selectedTab === "audio");
+        document.getElementById("doc").required = (selectedTab === "file_text");
+        document.getElementById("plain_text").required = (selectedTab === "plain_text");
+      });
+    });
+  })();
+</script>
 {% endblock %}

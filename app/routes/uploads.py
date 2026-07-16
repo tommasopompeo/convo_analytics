@@ -4,6 +4,7 @@ from __future__ import annotations
 import shutil
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -28,7 +29,7 @@ def home(request: Request, conn=Depends(db_dep), user=Depends(get_current_user))
                   JOIN transcripts t2 ON t2.id = an.transcript_id
                  WHERE t2.audio_file_id = a.id
                  ORDER BY an.id DESC LIMIT 1) AS analysis_id
-          FROM audio_files a
+          FROM knowledge_entries a
          WHERE a.user_id = ?
          ORDER BY a.id DESC
         """,
@@ -44,51 +45,180 @@ def home(request: Request, conn=Depends(db_dep), user=Depends(get_current_user))
 
 @router.get("/upload", response_class=HTMLResponse)
 def upload_form(request: Request, user=Depends(get_current_user)):
-    return templates.TemplateResponse(request, "upload.html", {"user": user})
+    from datetime import date
+    return templates.TemplateResponse(
+        request,
+        "upload.html",
+        {"user": user, "today": date.today().isoformat()},
+    )
 
 
 @router.post("/upload")
 async def upload_file(
     request: Request,
-    audio: UploadFile,
+    upload_type: str = Form("audio"),
+    recorded_date: str = Form(""),
+    audio: Optional[UploadFile] = None,
+    doc: Optional[UploadFile] = None,
+    plain_text: Optional[str] = Form(None),
     conn=Depends(db_dep),
     user=Depends(get_current_user),
 ):
-    ext = Path(audio.filename or "").suffix.lower()
-    if ext not in config.ALLOWED_EXT:
-        allowed = ", ".join(sorted(config.ALLOWED_EXT))
-        return templates.TemplateResponse(
-            request,
-            "upload.html",
-            {
-                "error": f"Unsupported file type '{ext or 'unknown'}'. Allowed: {allowed}.",
-                "user": user,
-            },
-            status_code=400,
+    from datetime import date
+    today_str = date.today().isoformat()
+    if not recorded_date:
+        recorded_date = today_str
+
+    if upload_type == "audio":
+        if not audio or not audio.filename:
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": "Please select an audio file.", "user": user, "today": today_str},
+                status_code=400,
+            )
+        ext = Path(audio.filename).suffix.lower()
+        if ext not in config.ALLOWED_EXT:
+            allowed = ", ".join(sorted(config.ALLOWED_EXT))
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {
+                    "error": f"Unsupported file type '{ext or 'unknown'}'. Allowed: {allowed}.",
+                    "user": user,
+                    "today": today_str,
+                },
+                status_code=400,
+            )
+
+        stored_name = f"{uuid.uuid4().hex}{ext}"
+        dest = config.AUDIO_DIR / stored_name
+        with dest.open("wb") as out:
+            shutil.copyfileobj(audio.file, out)
+
+        if dest.stat().st_size > config.MAX_UPLOAD_BYTES:
+            dest.unlink(missing_ok=True)
+            limit_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": f"File is too large (limit {limit_mb} MB).", "user": user, "today": today_str},
+                status_code=400,
+            )
+
+        cur = conn.execute(
+            "INSERT INTO knowledge_entries (user_id, path, filename, uploaded_at, transcription_status, entry_type, recorded_date) "
+            "VALUES (?, ?, ?, ?, 'uploaded', 'audio', ?)",
+            (user["id"], str(dest), audio.filename, utc_now_iso(), recorded_date),
         )
+        conn.commit()
+        return RedirectResponse(f"/files/{cur.lastrowid}/categorize", status_code=303)
 
-    stored_name = f"{uuid.uuid4().hex}{ext}"
-    dest = config.AUDIO_DIR / stored_name
-    with dest.open("wb") as out:
-        shutil.copyfileobj(audio.file, out)
+    elif upload_type == "file_text":
+        if not doc or not doc.filename:
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": "Please select a text or PDF document.", "user": user, "today": today_str},
+                status_code=400,
+            )
+        ext = Path(doc.filename).suffix.lower()
+        if ext not in {".txt", ".pdf"}:
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": f"Unsupported file type '{ext or 'unknown'}'. Allowed: .txt, .pdf.", "user": user, "today": today_str},
+                status_code=400,
+            )
 
-    if dest.stat().st_size > config.MAX_UPLOAD_BYTES:
-        dest.unlink(missing_ok=True)
-        limit_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
-        return templates.TemplateResponse(
-            request,
-            "upload.html",
-            {"error": f"File is too large (limit {limit_mb} MB).", "user": user},
-            status_code=400,
+        stored_name = f"{uuid.uuid4().hex}{ext}"
+        dest = config.DOCS_DIR / stored_name
+        
+        doc_bytes = await doc.read()
+        
+        # Max size check: 50 MB for documents
+        max_doc_bytes = 50 * 1024 * 1024
+        if len(doc_bytes) > max_doc_bytes:
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": "Document is too large (limit 50 MB).", "user": user, "today": today_str},
+                status_code=400,
+            )
+
+        # Extract text
+        if ext == ".txt":
+            try:
+                extracted_text = doc_bytes.decode("utf-8", errors="replace")
+            except Exception as e:
+                return templates.TemplateResponse(
+                    request,
+                    "upload.html",
+                    {"error": f"Failed to read text file: {e}", "user": user, "today": today_str},
+                    status_code=400,
+                )
+        else:  # .pdf
+            try:
+                import fitz
+                pdf_doc = fitz.open(stream=doc_bytes, filetype="pdf")
+                text_parts = []
+                for page in pdf_doc:
+                    text_parts.append(page.get_text())
+                extracted_text = "\n".join(text_parts).strip()
+            except Exception as e:
+                return templates.TemplateResponse(
+                    request,
+                    "upload.html",
+                    {"error": f"Failed to extract text from PDF: {e}", "user": user, "today": today_str},
+                    status_code=400,
+                )
+
+        if not extracted_text:
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": "No readable text could be extracted from the document.", "user": user, "today": today_str},
+                status_code=400,
+            )
+
+        # Save file to disk
+        with dest.open("wb") as out:
+            out.write(doc_bytes)
+
+        cur = conn.execute(
+            "INSERT INTO knowledge_entries (user_id, path, filename, uploaded_at, transcription_status, entry_type, recorded_date, raw_text) "
+            "VALUES (?, ?, ?, ?, 'uploaded', 'text', ?, ?)",
+            (user["id"], str(dest), doc.filename, utc_now_iso(), recorded_date, extracted_text),
         )
+        conn.commit()
+        return RedirectResponse(f"/files/{cur.lastrowid}/categorize", status_code=303)
 
-    cur = conn.execute(
-        "INSERT INTO audio_files (user_id, path, filename, uploaded_at, transcription_status) "
-        "VALUES (?, ?, ?, ?, 'uploaded')",
-        (user["id"], str(dest), audio.filename, utc_now_iso()),
-    )
-    conn.commit()
-    return RedirectResponse(f"/files/{cur.lastrowid}/categorize", status_code=303)
+    elif upload_type == "plain_text":
+        if not plain_text or not plain_text.strip():
+            return templates.TemplateResponse(
+                request,
+                "upload.html",
+                {"error": "Please enter some text.", "user": user, "today": today_str},
+                status_code=400,
+            )
+
+        plain_text = plain_text.strip()
+        stored_name = f"{uuid.uuid4().hex}.txt"
+        dest = config.DOCS_DIR / stored_name
+
+        with dest.open("w", encoding="utf-8") as out:
+            out.write(plain_text)
+
+        filename = f"Plain Text - {recorded_date}.txt"
+        cur = conn.execute(
+            "INSERT INTO knowledge_entries (user_id, path, filename, uploaded_at, transcription_status, entry_type, recorded_date, raw_text) "
+            "VALUES (?, ?, ?, ?, 'uploaded', 'text', ?, ?)",
+            (user["id"], str(dest), filename, utc_now_iso(), recorded_date, plain_text),
+        )
+        conn.commit()
+        return RedirectResponse(f"/files/{cur.lastrowid}/categorize", status_code=303)
+
+    return RedirectResponse("/upload", status_code=303)
 
 
 @router.get("/files/{file_id}/categorize", response_class=HTMLResponse)
@@ -99,7 +229,7 @@ def categorize_form(
     user=Depends(get_current_user),
 ):
     row = conn.execute(
-        "SELECT * FROM audio_files WHERE id=? AND user_id=?", (file_id, user["id"])
+        "SELECT * FROM knowledge_entries WHERE id=? AND user_id=?", (file_id, user["id"])
     ).fetchone()
     if row is None:
         return RedirectResponse("/", status_code=303)
@@ -128,34 +258,86 @@ def categorize_submit(
     user=Depends(get_current_user),
 ):
     row = conn.execute(
-        "SELECT id FROM audio_files WHERE id=? AND user_id=?", (file_id, user["id"])
+        "SELECT id, entry_type, raw_text, filename FROM knowledge_entries WHERE id=? AND user_id=?", (file_id, user["id"])
     ).fetchone()
     if row is None:
         return RedirectResponse("/", status_code=303)
 
-    conn.execute(
-        """
-        UPDATE audio_files
-           SET conversation_type=?, owner_role=?, objective=?, context_note=?,
-               single_sided=?,
-               transcription_status='transcribing', transcription_error=NULL
-         WHERE id=? AND user_id=?
-        """,
-        (
-            conversation_type,
-            owner_role,
-            objective.strip(),
-            context_note.strip(),
-            1 if single_sided == "1" else 0,
-            file_id,
-            user["id"],
-        ),
-    )
-    conn.commit()
+    if row["entry_type"] == "text":
+        # Create transcript record
+        cur = conn.execute(
+            "INSERT INTO transcripts (audio_file_id, raw_deepgram_json, plain_text, created_at) "
+            "VALUES (?, '{}', ?, ?)",
+            (file_id, row["raw_text"], utc_now_iso()),
+        )
+        transcript_id = cur.lastrowid
 
-    # Kick off transcription off the request path.
-    background.add_task(run_transcription, file_id)
-    return RedirectResponse(f"/files/{file_id}/transcribing", status_code=303)
+        # Pre-populate owner speaker mapped to username
+        conn.execute(
+            "INSERT INTO speakers (transcript_id, speaker_label, is_owner, local_name) "
+            "VALUES (?, 'speaker_1', 1, ?)",
+            (transcript_id, user["username"]),
+        )
+
+        # Pre-populate single utterance
+        conn.execute(
+            "INSERT INTO utterances (transcript_id, speaker_label, start_sec, end_sec, text) "
+            "VALUES (?, 'speaker_1', 0.0, 10.0, ?)",
+            (transcript_id, row["raw_text"]),
+        )
+
+        # Update metadata and status to transcribing (which is used for analysis loading)
+        conn.execute(
+            """
+            UPDATE knowledge_entries
+               SET conversation_type=?, owner_role=?, objective=?, context_note=?,
+                   single_sided=0,
+                   transcription_status='transcribing', transcription_error=NULL
+             WHERE id=? AND user_id=?
+            """,
+            (
+                conversation_type,
+                owner_role,
+                objective.strip(),
+                context_note.strip(),
+                file_id,
+                user["id"],
+            ),
+        )
+        conn.commit()
+
+        from ..web import export_transcript_to_file
+        export_transcript_to_file(conn, transcript_id)
+
+        # Kick off background analysis task
+        from ..background import run_analysis_background
+        background.add_task(run_analysis_background, file_id, transcript_id, user["id"])
+        return RedirectResponse(f"/files/{file_id}/transcribing", status_code=303)
+
+    else:
+        conn.execute(
+            """
+            UPDATE knowledge_entries
+               SET conversation_type=?, owner_role=?, objective=?, context_note=?,
+                   single_sided=?,
+                   transcription_status='transcribing', transcription_error=NULL
+             WHERE id=? AND user_id=?
+            """,
+            (
+                conversation_type,
+                owner_role,
+                objective.strip(),
+                context_note.strip(),
+                1 if single_sided == "1" else 0,
+                file_id,
+                user["id"],
+            ),
+        )
+        conn.commit()
+
+        # Kick off transcription off the request path.
+        background.add_task(run_transcription, file_id)
+        return RedirectResponse(f"/files/{file_id}/transcribing", status_code=303)
 
 
 @router.get("/files/{file_id}/transcribing", response_class=HTMLResponse)
@@ -166,7 +348,7 @@ def transcribing_page(
     user=Depends(get_current_user),
 ):
     row = conn.execute(
-        "SELECT * FROM audio_files WHERE id=? AND user_id=?", (file_id, user["id"])
+        "SELECT * FROM knowledge_entries WHERE id=? AND user_id=?", (file_id, user["id"])
     ).fetchone()
     if row is None:
         return RedirectResponse("/", status_code=303)
@@ -186,7 +368,7 @@ def delete_file(
     respect the foreign keys. The stored audio file is removed from disk last.
     """
     row = conn.execute(
-        "SELECT path FROM audio_files WHERE id=? AND user_id=?",
+        "SELECT path FROM knowledge_entries WHERE id=? AND user_id=?",
         (file_id, user["id"]),
     ).fetchone()
     if row is None:
@@ -210,7 +392,7 @@ def delete_file(
             transcript_ids,
         )
     conn.execute(
-        "DELETE FROM audio_files WHERE id=? AND user_id=?", (file_id, user["id"])
+        "DELETE FROM knowledge_entries WHERE id=? AND user_id=?", (file_id, user["id"])
     )
     conn.commit()
 
@@ -225,7 +407,7 @@ def transcription_status(
     file_id: int, conn=Depends(db_dep), user=Depends(get_current_user)
 ):
     row = conn.execute(
-        "SELECT transcription_status, transcription_error FROM audio_files WHERE id=? AND user_id=?",
+        "SELECT transcription_status, transcription_error FROM knowledge_entries WHERE id=? AND user_id=?",
         (file_id, user["id"]),
     ).fetchone()
     if row is None:

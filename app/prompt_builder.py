@@ -55,36 +55,24 @@ _HARD_RULE = (
 # The SAME block is used by the manual Stage-1 loop and, later, the Stage-2 API
 # calls; only the caller changes.
 SCHEMA_BLOCK_AGG = """{
-  "portrait": "3-5 sentence holistic read of the owner across ALL conversations — a synthesis, NOT a restatement of the most recent one",
-  "portrait_evidence": ["short reference to the conversation(s) supporting the portrait"],
-  "through_lines": [
-    { "pattern": "a trait/dynamic that holds across conversations", "supporting_conversations": ["<conv ref>"], "note": "" }
-  ],
-  "shows_up_differently": [
-    { "context": "conversation type/setting, e.g. 'feedback 1-on-1' | 'interview'", "how": "how the owner presents in this setting", "supporting_conversations": ["<conv ref>"] }
-  ],
-  "recurring_themes": [
-    { "theme": "", "conversation_count": 0, "supporting_conversations": ["<conv ref>"] }
-  ],
-  "tensions": [
-    { "stated": "what the owner says they value/intend", "observed": "how they actually behave across conversations", "supporting_conversations": ["<conv ref>"] }
-  ],
-  "drift": {
-    "summary": "how the read has evolved as evidence accumulated (be honest about corpus size)",
-    "points": [ { "conversation": "<conv ref>", "date": "YYYY-MM-DD", "signal": "one-line archetype signal at this point" } ]
-  },
-  "archetype": "a short emergent label/sentence — the regenerated current archetype (this REPLACES last-write-wins)",
-  "confidence": "low|medium|high — honest given the corpus size",
+  "who_i_am": "3-5 sentence holistic portrait/read of the owner across ALL conversations — a synthesis, NOT a restatement of the most recent one",
+  "current_issues": ["a key issue, goal, conflict, or concern currently occupying the owner"],
+  "recurrent_topics": ["topics that frequently surface across multiple conversations"],
+  "strong_opinions": ["strongly held beliefs, values, or stances the owner has expressed"],
+  "tone_and_sentiment": "summary of the owner's general communication tone and dominant sentiment/emotional register",
   "corpus_meta": { "conversation_count": 0, "synthesis_type": "manual", "generated_at": "", "source_analysis_ids": [] }
 }"""
 
 _HARD_RULE_AGG = (
     "You are synthesizing a person across MANY conversations at once. Surface "
-    "patterns no single conversation reveals — recurring dynamics, how they show "
-    "up differently by setting, tensions between what they say and how they "
-    "behave, and drift over time. Regenerate the archetype from the WHOLE corpus; "
+    "patterns no single conversation reveals — who they are, their current issues, "
+    "recurrent topics, strong opinions, and tone/sentiment. "
+    "Regenerate the portrait from the WHOLE corpus; "
     "do NOT just echo the most recent conversation. Be honest about how little a "
-    "small corpus can support."
+    "small corpus can support. "
+    "IMPORTANT: Respect any manual overrides provided in the 'Current user-edited profile' "
+    "and individual conversation 'User comment/missing context override' fields. "
+    "These represent the user's explicit corrections and ground truth."
 )
 
 
@@ -93,18 +81,31 @@ def _fmt_ts(seconds: float) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-def _display_label(label: str, owner_label: str) -> str:
-    return "owner" if label == owner_label else label
+def _display_label(
+    label: str,
+    owner_label: str,
+    speaker_mapping: dict[str, dict[str, Any]] | None = None,
+) -> str:
+    if speaker_mapping and label in speaker_mapping:
+        info = speaker_mapping[label]
+        if info.get("is_owner"):
+            return "you"
+        return info.get("local_name") or label
+    return "you" if label == owner_label else label
 
 
-def render_transcript(utterances: list[dict[str, Any]], owner_label: str) -> str:
+def render_transcript(
+    utterances: list[dict[str, Any]],
+    owner_label: str,
+    speaker_mapping: dict[str, dict[str, Any]] | None = None,
+) -> str:
     """Speaker-labeled transcript with hesitation fillers stripped."""
     lines: list[str] = []
     for u in utterances:
         text = strip_fillers(u["text"])
         if not text:
             continue
-        who = _display_label(u["speaker_label"], owner_label)
+        who = _display_label(u["speaker_label"], owner_label, speaker_mapping)
         lines.append(f"[{_fmt_ts(float(u['start_sec']))}] {who}: {text}")
     return "\n".join(lines)
 
@@ -118,14 +119,16 @@ def build_prompt(
     utterances: list[dict[str, Any]],
     profile_json: dict[str, Any],
     single_sided: bool = False,
+    speaker_mapping: dict[str, dict[str, Any]] | None = None,
 ) -> str:
     """Assemble the full copy-ready prompt string."""
     label_map = ", ".join(
-        f"{lbl} = {_display_label(lbl, owner_label)}" for lbl in speaker_labels
+        f"{lbl} = {_display_label(lbl, owner_label, speaker_mapping)}" for lbl in speaker_labels
     )
 
     meta_lines = [
         f"- Conversation type: {metadata.get('conversation_type') or 'unspecified'}",
+        f"- Date of conversation: {metadata.get('recorded_date') or 'unspecified'}",
         f"- Owner's role: {metadata.get('owner_role') or 'unspecified'}",
         f"- Owner's objective: {metadata.get('objective') or '(none provided)'}",
         f"- Additional context: {metadata.get('context_note') or '(none provided)'}",
@@ -154,8 +157,12 @@ def build_prompt(
         *single_sided_note,
         "",
         "## Speakers",
-        f"The owner ('me') is: {owner_label}.",
+        f"The owner ('me'/'you') is: {owner_label}.",
         f"Refer to speakers in your output using these names: {label_map}.",
+        "",
+        "CRITICAL INSTRUCTIONS FOR SPEAKERS:",
+        "1. You must refer to the owner (the logged-in user) in the first person as 'you' or 'your' throughout your entire output (e.g. 'you said', 'your tone', 'your objective'). When filling the speaker or driven_by_speaker fields in the JSON response, refer to the owner as 'you'.",
+        "2. You must refer to other speakers using their actual mapped names (e.g. 'Costantino') instead of generic placeholders like 'speaker_2' or 'Speaker 2'.",
         "",
         "## Deterministic metrics (GROUND TRUTH — cite these, do not invent or recompute)",
         "```json",
@@ -168,7 +175,7 @@ def build_prompt(
         "```",
         "",
         "## Transcript (speaker-labeled; hesitation fillers removed)",
-        render_transcript(utterances, owner_label) or "(no speech detected)",
+        render_transcript(utterances, owner_label, speaker_mapping) or "(no speech detected)",
         "",
         "## Output schema — return EXACTLY this JSON object, nothing else",
         SCHEMA_BLOCK,
@@ -204,6 +211,8 @@ def _fmt_conversation_block(conv: dict[str, Any], idx: int) -> str:
     lines.append(
         f"- Sentiment — owner: {sentiment.get('owner', '?')}; conversation: {sentiment.get('conversation', '?')}"
     )
+    if conv.get("user_comment"):
+        lines.append(f"- User comment/missing context override: {conv['user_comment']}")
     if m:
         lines.append(f"- Metrics: {m}")
     return "\n".join(lines)
@@ -213,6 +222,7 @@ def build_aggregate_prompt(
     *,
     conversations: list[dict[str, Any]],
     current_aggregate: dict[str, Any] | None,
+    user_profile: dict[str, Any] | None = None,
     corpus_stats: dict[str, Any],
     synthesis_type: str = "manual",
 ) -> str:
@@ -234,6 +244,22 @@ def build_aggregate_prompt(
         if current_aggregate else
         ["## Previous overall synthesis", "(none yet — this is the first synthesis)", ""]
     )
+    profile_block = []
+    if user_profile:
+        clean_profile = {
+            "who_i_am": user_profile.get("who_i_am", ""),
+            "current_issues": user_profile.get("current_issues", []),
+            "recurrent_topics": user_profile.get("recurrent_topics", []),
+            "strong_opinions": user_profile.get("strong_opinions", []),
+            "tone_and_sentiment": user_profile.get("tone_and_sentiment", ""),
+        }
+        profile_block = [
+            "## Current user-edited profile (MANUAL OVERRIDES — respect these edits/feedback)",
+            "```json",
+            json.dumps(clean_profile, ensure_ascii=False, indent=2),
+            "```",
+            ""
+        ]
     return "\n".join([
         "You are building an owner's cross-conversation portrait.",
         _HARD_RULE,
@@ -244,6 +270,7 @@ def build_aggregate_prompt(
         json.dumps(corpus_stats, ensure_ascii=False, indent=2),
         "```",
         "",
+        *profile_block,
         *prior,
         f"## The conversations ({len(conversations)} total)",
         "",

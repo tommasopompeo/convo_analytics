@@ -4,8 +4,13 @@
 {% block content %}
 <div class="page page-flow stack-8 reveal">
   <div class="stack-3">
+    {% if is_edit %}
+    <p class="step">Edit Speakers</p>
+    <h1>Change speaker assignment</h1>
+    {% else %}
     <p class="step"><span class="step-n">04</span> of 05 · Voices</p>
     <h1>Which voice is you?</h1>
+    {% endif %}
     <p class="lead">I’ve separated the speakers by voice. Mark the one that’s you — that’s
       the only tag that matters. You can name the others just for this recording if it helps
       you read it back.</p>
@@ -45,8 +50,11 @@
       {% endfor %}
     </div>
 
-    <div>
-      <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+    <div class="row" style="gap: var(--space-4); align-items: center;">
+      <button type="submit" class="btn btn-primary btn-lg">{% if is_edit %}Save changes{% else %}Continue{% endif %}</button>
+      {% if is_edit %}
+      <a href="/transcripts/{{ transcript.id }}" class="btn btn-ghost">Cancel</a>
+      {% endif %}
     </div>
   </form>
   {% endif %}

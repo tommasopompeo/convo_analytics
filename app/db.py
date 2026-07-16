@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS audio_files (
+CREATE TABLE IF NOT EXISTS knowledge_entries (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id              INTEGER REFERENCES users(id),
     path                 TEXT NOT NULL,
@@ -58,12 +58,15 @@ CREATE TABLE IF NOT EXISTS audio_files (
     context_note         TEXT,
     transcription_status TEXT NOT NULL DEFAULT 'uploaded',
     transcription_error  TEXT,
-    single_sided         INTEGER NOT NULL DEFAULT 0
+    single_sided         INTEGER NOT NULL DEFAULT 0,
+    entry_type           TEXT NOT NULL DEFAULT 'audio',
+    recorded_date        DATE,
+    raw_text             TEXT
 );
 
 CREATE TABLE IF NOT EXISTS transcripts (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    audio_file_id     INTEGER NOT NULL REFERENCES audio_files(id),
+    audio_file_id     INTEGER NOT NULL REFERENCES knowledge_entries(id),
     raw_deepgram_json TEXT NOT NULL,
     plain_text        TEXT NOT NULL,
     created_at        TEXT NOT NULL
@@ -91,15 +94,14 @@ CREATE TABLE IF NOT EXISTS analyses (
     transcript_id   INTEGER NOT NULL REFERENCES transcripts(id),
     metrics_json    TEXT NOT NULL,
     llm_output_json TEXT NOT NULL,
+    user_comment    TEXT,
     created_at      TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS owner_profile (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id         INTEGER REFERENCES users(id),
-    profile_json    TEXT NOT NULL,
-    archetype       TEXT,
-    archetype_notes TEXT,
+    profile_data    TEXT NOT NULL,
     updated_at      TEXT NOT NULL
 );
 
@@ -120,10 +122,29 @@ CREATE TABLE IF NOT EXISTS aggregate_insight (
     created_at          TEXT NOT NULL
 );
 
+-- Chatbot session history
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER REFERENCES users(id),
+    title      TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    sources    TEXT, -- JSON string storing sources like [{'title': '...', 'url': '...'}]
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_utterances_transcript ON utterances(transcript_id);
 CREATE INDEX IF NOT EXISTS idx_speakers_transcript   ON speakers(transcript_id);
 CREATE INDEX IF NOT EXISTS idx_transcripts_audio     ON transcripts(audio_file_id);
 CREATE INDEX IF NOT EXISTS idx_analyses_transcript   ON analyses(transcript_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
 """
 
 
@@ -134,23 +155,115 @@ def _migrate(conn: sqlite3.Connection) -> None:
     to SCHEMA above won't appear on a pre-existing `audio_files`. Add it here,
     guarded by a check so re-running is a no-op.
     """
-    # Migrate audio_files
-    cols = {r["name"] for r in conn.execute("PRAGMA table_info(audio_files)")}
+    # 1. Rename audio_files table to knowledge_entries if needed, or copy data and drop if both exist.
+    tables = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "audio_files" in tables:
+        if "knowledge_entries" in tables:
+            conn.execute("""
+                INSERT INTO knowledge_entries (
+                    id, user_id, path, filename, uploaded_at, duration_sec,
+                    conversation_type, owner_role, objective, context_note,
+                    transcription_status, transcription_error, single_sided,
+                    entry_type
+                )
+                SELECT
+                    id, user_id, path, filename, uploaded_at, duration_sec,
+                    conversation_type, owner_role, objective, context_note,
+                    transcription_status, transcription_error, single_sided,
+                    'audio'
+                FROM audio_files
+                WHERE id NOT IN (SELECT id FROM knowledge_entries)
+            """)
+            conn.execute("DROP TABLE audio_files")
+        else:
+            conn.execute("ALTER TABLE audio_files RENAME TO knowledge_entries")
+
+    # 1.5. Migrate transcripts table if its schema still references audio_files (SQLite doesn't automatically rename foreign key references on ALTER TABLE RENAME)
+    transcripts_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='transcripts'"
+    ).fetchone()
+    if transcripts_sql and "REFERENCES audio_files" in transcripts_sql["sql"]:
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys = OFF;")
+        try:
+            conn.execute("""
+                CREATE TABLE transcripts_new (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    audio_file_id     INTEGER NOT NULL REFERENCES knowledge_entries(id),
+                    raw_deepgram_json TEXT NOT NULL,
+                    plain_text        TEXT NOT NULL,
+                    created_at        TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                INSERT INTO transcripts_new (id, audio_file_id, raw_deepgram_json, plain_text, created_at)
+                SELECT id, audio_file_id, raw_deepgram_json, plain_text, created_at
+                FROM transcripts;
+            """)
+            conn.execute("DROP TABLE transcripts;")
+            conn.execute("ALTER TABLE transcripts_new RENAME TO transcripts;")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_transcripts_audio ON transcripts(audio_file_id);")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.execute("PRAGMA foreign_keys = ON;")
+
+    # Migrate knowledge_entries
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(knowledge_entries)")}
     if "single_sided" not in cols:
         conn.execute(
-            "ALTER TABLE audio_files ADD COLUMN single_sided INTEGER NOT NULL DEFAULT 0"
+            "ALTER TABLE knowledge_entries ADD COLUMN single_sided INTEGER NOT NULL DEFAULT 0"
         )
     if "user_id" not in cols:
         conn.execute(
-            "ALTER TABLE audio_files ADD COLUMN user_id INTEGER REFERENCES users(id)"
+            "ALTER TABLE knowledge_entries ADD COLUMN user_id INTEGER REFERENCES users(id)"
+        )
+    if "entry_type" not in cols:
+        conn.execute(
+            "ALTER TABLE knowledge_entries ADD COLUMN entry_type TEXT NOT NULL DEFAULT 'audio'"
+        )
+    if "recorded_date" not in cols:
+        conn.execute(
+            "ALTER TABLE knowledge_entries ADD COLUMN recorded_date DATE"
+        )
+    if "raw_text" not in cols:
+        conn.execute(
+            "ALTER TABLE knowledge_entries ADD COLUMN raw_text TEXT"
+        )
+
+    # Migrate analyses
+    analyses_cols = {r["name"] for r in conn.execute("PRAGMA table_info(analyses)")}
+    if "user_comment" not in analyses_cols:
+        conn.execute(
+            "ALTER TABLE analyses ADD COLUMN user_comment TEXT"
         )
 
     # Migrate owner_profile
     profile_cols = {r["name"] for r in conn.execute("PRAGMA table_info(owner_profile)")}
-    if "user_id" not in profile_cols:
-        conn.execute(
-            "ALTER TABLE owner_profile ADD COLUMN user_id INTEGER REFERENCES users(id)"
-        )
+    if "profile_json" in profile_cols:
+        # Recreate table: read existing data, drop, recreate, insert.
+        rows = conn.execute("SELECT id, user_id, profile_json, updated_at FROM owner_profile").fetchall()
+        conn.execute("DROP TABLE owner_profile")
+        conn.execute("""
+            CREATE TABLE owner_profile (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER REFERENCES users(id),
+                profile_data    TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+            );
+        """)
+        for r in rows:
+            conn.execute(
+                "INSERT INTO owner_profile (id, user_id, profile_data, updated_at) VALUES (?, ?, ?, ?)",
+                (r["id"], r["user_id"], r["profile_json"], r["updated_at"])
+            )
+    else:
+        if "user_id" not in profile_cols and "profile_data" in profile_cols:
+            conn.execute(
+                "ALTER TABLE owner_profile ADD COLUMN user_id INTEGER REFERENCES users(id)"
+            )
 
     # Migrate aggregate_insight
     insight_cols = {r["name"] for r in conn.execute("PRAGMA table_info(aggregate_insight)")}
@@ -175,7 +288,7 @@ def init_db() -> None:
         _migrate(conn)
         conn.execute(
             """
-            UPDATE audio_files
+            UPDATE knowledge_entries
                SET transcription_status = 'failed',
                    transcription_error  = 'Interrupted before completion (server restart).'
              WHERE transcription_status = 'transcribing'

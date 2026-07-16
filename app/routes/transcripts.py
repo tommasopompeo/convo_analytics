@@ -21,8 +21,8 @@ def _transcript_or_none(conn, transcript_id: int, user_id: int):
     return conn.execute(
         """
         SELECT t.id, t.audio_file_id, t.plain_text, a.duration_sec, a.filename,
-               a.conversation_type, a.owner_role, a.objective, a.context_note
-          FROM transcripts t JOIN audio_files a ON a.id = t.audio_file_id
+               a.conversation_type, a.owner_role, a.objective, a.context_note, a.entry_type
+          FROM transcripts t JOIN knowledge_entries a ON a.id = t.audio_file_id
          WHERE t.id = ? AND a.user_id = ?
         """,
         (transcript_id, user_id),
@@ -39,6 +39,21 @@ def speakers_form(
     transcript = _transcript_or_none(conn, transcript_id, user["id"])
     if transcript is None:
         return RedirectResponse("/", status_code=303)
+
+    entry = conn.execute(
+        "SELECT entry_type FROM knowledge_entries WHERE id = ?",
+        (transcript["audio_file_id"],)
+    ).fetchone()
+
+    if entry and entry["entry_type"] == "text":
+        analysis_row = conn.execute(
+            "SELECT id FROM analyses WHERE transcript_id = ? ORDER BY id DESC LIMIT 1",
+            (transcript_id,)
+        ).fetchone()
+        if analysis_row:
+            return RedirectResponse(f"/analyses/{analysis_row['id']}", status_code=303)
+        else:
+            return RedirectResponse(f"/transcripts/{transcript_id}", status_code=303)
 
     speaker_rows = conn.execute(
         "SELECT speaker_label, is_owner, local_name FROM speakers WHERE transcript_id=? ORDER BY speaker_label",
@@ -67,10 +82,17 @@ def speakers_form(
             }
         )
 
+    is_edit = any(s["is_owner"] for s in speaker_rows)
+
     return templates.TemplateResponse(
         request,
         "speakers.html",
-        {"transcript": dict(transcript), "speakers": speakers, "user": user},
+        {
+            "transcript": dict(transcript),
+            "speakers": speakers,
+            "user": user,
+            "is_edit": is_edit,
+        },
     )
 
 
@@ -108,6 +130,9 @@ async def speakers_submit(
             ),
         )
     conn.commit()
+
+    from ..web import export_transcript_to_file
+    export_transcript_to_file(conn, transcript_id)
 
     if owner is None or owner not in labels:
         # Re-render with a gentle prompt to pick exactly one owner.

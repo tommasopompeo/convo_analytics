@@ -67,12 +67,12 @@ def build_corpus_bundle(conn, user_id: int) -> tuple[list[dict[str, Any]], dict[
     rows = conn.execute(
         """
         SELECT an.id AS analysis_id, an.transcript_id, an.llm_output_json,
-               an.created_at,
+               an.user_comment, an.created_at,
                af.filename, af.conversation_type, af.owner_role,
                af.duration_sec, af.single_sided
           FROM analyses an
           JOIN transcripts t   ON t.id = an.transcript_id
-          JOIN audio_files af  ON af.id = t.audio_file_id
+          JOIN knowledge_entries af  ON af.id = t.audio_file_id
          WHERE af.user_id = ?
          ORDER BY an.created_at ASC, an.id ASC
         """,
@@ -108,6 +108,7 @@ def build_corpus_bundle(conn, user_id: int) -> tuple[list[dict[str, Any]], dict[
             "date": (r["created_at"] or "")[:10],
             "single_sided": bool(r["single_sided"]),
             "analysis": _safe_analysis(r["llm_output_json"]),
+            "user_comment": r["user_comment"],
             "metric_summary": _metric_summary(utts, owner_label, r["duration_sec"]),
         })
         source_ids.append(r["analysis_id"])

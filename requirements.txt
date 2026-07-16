@@ -9,3 +9,4 @@ pytest
 google-generativeai
 passlib[bcrypt]
 python-jose[cryptography]
+pymupdf

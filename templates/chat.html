@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}{% if active_session %}{{ active_session.title }}{% else %}New Chat{% endif %} · Audio Intelligence{% endblock %}
+{% set nav = 'chat' %}
+
+{% block content %}
+<div class="page page-wide reveal stack-6">
+  <div class="stack-2">
+    <p class="eyebrow">Digital Twin Reflection</p>
+    <h1>Discover more about you</h1>
+    <p class="lead">Discuss thoughts, reflect on actions, and query your twin grounded in your unified profile.</p>
+  </div>
+
+  <div class="chat-layout">
+    <!-- Sidebar -->
+    <aside class="chat-sidebar">
+      <div class="chat-sidebar-header">
+        <a href="/chat" class="btn btn-secondary" style="width: 100%; display: flex; justify-content: center; font-weight: 600;">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" style="width: 1.15em; height: 1.15em; margin-right: 4px;">
+            <path d="M10 4.2v11.6M4.2 10h11.6" stroke-linecap="round"/>
+          </svg>
+          New Chat
+        </a>
+      </div>
+      
+      <div class="chat-sessions-list">
+        {% if sessions %}
+          {% for s in sessions %}
+            <a href="/chat/{{ s.id }}" class="chat-session-item {% if active_session and active_session.id == s.id %}active{% endif %}" data-session-id="{{ s.id }}">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" style="width: 1.25em; height: 1.25em; flex: none; opacity: 0.7;">
+                <path d="M16 10a6 6 0 1 1-12 0c0-1.2.3-2.3.9-3.2L4 4l2.8.9c.9-.6 2-.9 3.2-.9a6 6 0 0 1 6 6z" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>{{ s.title }}</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <p class="body-meta" style="padding: 10px 14px; text-align: center;">No past sessions yet.</p>
+        {% endif %}
+      </div>
+    </aside>
+
+    <!-- Main Chat Window -->
+    <div class="chat-main">
+      <div class="chat-header">
+        <h3>{% if active_session %}{{ active_session.title }}{% else %}New Chat{% endif %}</h3>
+      </div>
+
+      <div class="chat-messages-container" id="messages-container">
+        <div class="chat-messages-inner" id="messages-inner">
+          {% if not messages %}
+            <!-- Welcome screen with quick suggestions -->
+            <div class="chat-welcome">
+              <div class="chat-welcome-icon">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M16 10a6 6 0 1 1-12 0c0-1.2.3-2.3.9-3.2L4 4l2.8.9c.9-.6 2-.9 3.2-.9a6 6 0 0 1 6 6z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h2>Speak with your digital twin</h2>
+              <p>Your digital twin has access to your unified profile portrait. Ask questions to reflect on your goals, topics of interest, or tone.</p>
+              
+              <div class="chat-suggestions">
+                <div class="suggestion-card" onclick="sendSuggestion('What recurrent topics do I focus on most in my conversations?')">
+                  <h4>Analyze Recurrent Topics</h4>
+                  <p>Identify primary themes and areas of focus in your portrait.</p>
+                </div>
+                <div class="suggestion-card" onclick="sendSuggestion('Help me think through a recent conflict or issue.')">
+                  <h4>Think Through Conflict</h4>
+                  <p>Reflect on professional or personal challenges objectively.</p>
+                </div>
+                <div class="suggestion-card" onclick="sendSuggestion('Am I being objective about my goals and concerns?')">
+                  <h4>Goal Alignment Check</h4>
+                  <p>Evaluate your perspective against past stances.</p>
+                </div>
+                <div class="suggestion-card" onclick="sendSuggestion('What does my general communication tone reveal about me?')">
+                  <h4>Tone & Sentiment Review</h4>
+                  <p>Analyze how you speak and how it aligns with your portrait.</p>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            {% for m in messages %}
+              <div class="chat-bubble {{ m.role }}" data-raw-content="{{ m.content }}">{{ m.content }}</div>
+              {% if m.role == 'model' and m.sources %}
+                <div class="chat-sources">
+                  <span class="sources-label">Sources:</span>
+                  {% for src in m.sources %}
+                    <a href="{{ src.url }}" target="_blank" class="source-pill">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
+                        <path d="M1.5 8h13M8 1.5v13M1.5 8c0-3.5 3-6.5 6.5-6.5s6.5 3 6.5 6.5-3 6.5-6.5 6.5S1.5 11.5 1.5 8z" stroke-linecap="round"/>
+                      </svg>
+                      {{ src.title }}
+                    </a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Input Bar Container -->
+      <div class="chat-input-container">
+        <div class="chat-input-wrapper">
+          <form id="chat-form" style="margin: 0; width: 100%;">
+            <input type="hidden" name="session_id" id="session-id-input" value="{% if active_session %}{{ active_session.id }}{% endif %}">
+            
+            <div class="chat-input-box">
+              <textarea id="chat-message-input" placeholder="Reflect or query your digital twin..." rows="1" required></textarea>
+              <button type="submit" class="chat-input-send-btn" id="send-button">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" style="transform: rotate(-45deg); margin-left: 2px; margin-top: -1px;">
+                  <path d="M17.5 2.5L2.5 9l6 2.5 2.5 6 6.5-15z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div style="margin-top: var(--space-2); padding-left: 4px;">
+              <label class="grounding-toggle">
+                <input type="checkbox" id="search-grounding-checkbox">
+                <span class="grounding-toggle-text">Enable Search Grounding (Google Search context)</span>
+              </label>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Simple regex-based markdown formatter for premium text styling
+function formatMarkdown(text) {
+  // Escape HTML
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Bold text: **bold** -> <strong>bold</strong>
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // Split into paragraphs by double newlines
+  let blocks = escaped.split("\n\n");
+  let formatted = blocks.map(block => {
+    block = block.trim();
+    if (!block) return "";
+
+    // Bullet list processing: checks if block consists of bullet points
+    if (block.startsWith("- ") || block.startsWith("* ")) {
+      let lines = block.split(/\n[-*] /);
+      // Ensure first element strips off the list marker
+      if (lines[0].startsWith("- ") || lines[0].startsWith("* ")) {
+        lines[0] = lines[0].substring(2);
+      }
+      let itemsHtml = lines.map(line => `<li>${line.trim()}</li>`).join("");
+      return `<ul>${itemsHtml}</ul>`;
+    }
+    
+    // Normal paragraph
+    // Replace single newlines with <br> for readability
+    return `<p>${block.replace(/\n/g, "<br>")}</p>`;
+  }).join("");
+
+  return formatted;
+}
+
+// Global function to trigger suggestion sending
+function sendSuggestion(text) {
+  const input = document.getElementById("chat-message-input");
+  input.value = text;
+  input.focus();
+  input.style.height = "auto";
+  input.style.height = (input.scrollHeight - 4) + "px";
+  
+  // Submit form
+  document.getElementById("chat-form").requestSubmit();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const container = document.getElementById("messages-container");
+  const innerContainer = document.getElementById("messages-inner");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-message-input");
+  const sessionIdInput = document.getElementById("session-id-input");
+  const searchCheckbox = document.getElementById("search-grounding-checkbox");
+  const sessionTitle = document.getElementById("chat-session-title");
+  const sendButton = document.getElementById("send-button");
+
+  // Scroll helper
+  const scrollToBottom = () => {
+    container.scrollTop = container.scrollHeight;
+  };
+
+  // Run markdown formatting on preloaded messages
+  const preloadedBubbles = innerContainer.querySelectorAll(".chat-bubble.model");
+  preloadedBubbles.forEach(bubble => {
+    const raw = bubble.getAttribute("data-raw-content") || bubble.innerText;
+    bubble.innerHTML = formatMarkdown(raw);
+  });
+  scrollToBottom();
+
+  // Textarea key listener (Enter sends, Shift+Enter starts newline)
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  // Handle message submission
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Reset textarea height and text
+    input.value = "";
+    input.style.height = "auto";
+
+    // Remove welcome card if visible
+    const welcome = innerContainer.querySelector(".chat-welcome");
+    if (welcome) {
+      welcome.remove();
+    }
+
+    // Append user message bubble
+    const userBubble = document.createElement("div");
+    userBubble.className = "chat-bubble user";
+    userBubble.innerText = text;
+    innerContainer.appendChild(userBubble);
+    scrollToBottom();
+
+    // Disable UI inputs
+    input.disabled = true;
+    sendButton.disabled = true;
+
+    // Append loading twin bubble
+    const loadingBubble = document.createElement("div");
+    loadingBubble.className = "chat-bubble model loading-indicator";
+    loadingBubble.style.display = "flex";
+    loadingBubble.style.alignItems = "center";
+    loadingBubble.style.gap = "var(--space-2)";
+    loadingBubble.innerHTML = `
+      <span class="spinner" style="width: 16px; height: 16px; border-width: 1.5px; margin: 0;"></span>
+      <span class="body-meta">Twin is reflecting...</span>
+    `;
+    innerContainer.appendChild(loadingBubble);
+    scrollToBottom();
+
+    // Setup payload data
+    const formData = new FormData();
+    formData.append("message", text);
+    if (sessionIdInput.value) {
+      formData.append("session_id", sessionIdInput.value);
+    }
+    if (searchCheckbox.checked) {
+      formData.append("search_enabled", "true");
+    }
+
+    try {
+      const response = await fetch("/chat/message", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error("API call failed");
+      }
+
+      const data = await response.json();
+
+      // Remove loading indicator
+      loadingBubble.remove();
+
+      // Append twin response bubble with formatted markdown html
+      const modelBubble = document.createElement("div");
+      modelBubble.className = "chat-bubble model";
+      modelBubble.innerHTML = formatMarkdown(data.ai_message);
+      innerContainer.appendChild(modelBubble);
+
+      // Append sources pills if available
+      if (data.sources && data.sources.length > 0) {
+        const sourcesDiv = document.createElement("div");
+        sourcesDiv.className = "chat-sources";
+        sourcesDiv.innerHTML = `<span class="sources-label">Sources:</span>`;
+        data.sources.forEach(src => {
+          const a = document.createElement("a");
+          a.href = src.url;
+          a.target = "_blank";
+          a.className = "source-pill";
+          a.innerHTML = `
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" style="width: 11px; height: 11px;">
+              <path d="M1.5 8h13M8 1.5v13M1.5 8c0-3.5 3-6.5 6.5-6.5s6.5 3 6.5 6.5-3 6.5-6.5 6.5S1.5 11.5 1.5 8z" stroke-linecap="round"/>
+            </svg>
+            ${src.title}
+          `;
+          sourcesDiv.appendChild(a);
+        });
+        innerContainer.appendChild(sourcesDiv);
+      }
+
+      scrollToBottom();
+
+      // Handle new session creation events
+      if (!sessionIdInput.value && data.session_id) {
+        sessionIdInput.value = data.session_id;
+        const chatTitleEl = document.querySelector(".chat-header h3");
+        if (chatTitleEl) chatTitleEl.innerText = data.session_title;
+        window.history.pushState({}, "", "/chat/" + data.session_id);
+        
+        // Dynamic sidebar append
+        const sidebarList = document.querySelector(".chat-sessions-list");
+        if (sidebarList) {
+          const noSessionsMsg = sidebarList.querySelector("p");
+          if (noSessionsMsg) noSessionsMsg.remove();
+
+          const item = document.createElement("a");
+          item.href = "/chat/" + data.session_id;
+          item.className = "chat-session-item active";
+          item.dataset.sessionId = data.session_id;
+          item.innerHTML = `
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" style="width: 1.25em; height: 1.25em; flex: none; opacity: 0.7;">
+              <path d="M16 10a6 6 0 1 1-12 0c0-1.2.3-2.3.9-3.2L4 4l2.8.9c.9-.6 2-.9 3.2-.9a6 6 0 0 1 6 6z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>${data.session_title}</span>
+          `;
+          
+          sidebarList.querySelectorAll(".chat-session-item").forEach(el => el.classList.remove("active"));
+          sidebarList.prepend(item);
+        }
+      }
+
+    } catch (err) {
+      console.error(err);
+      loadingBubble.remove();
+      const errorBubble = document.createElement("div");
+      errorBubble.className = "chat-bubble model";
+      errorBubble.style.color = "var(--danger)";
+      errorBubble.innerText = "Error: Could not retrieve twin response. Please try again.";
+      innerContainer.appendChild(errorBubble);
+      scrollToBottom();
+    } finally {
+      input.disabled = false;
+      sendButton.disabled = false;
+      input.focus();
+    }
+  });
+
+  // Dynamic auto-expanding text box height adjustment
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = (input.scrollHeight - 4) + "px";
+  });
+});
+</script>
+{% endblock %}

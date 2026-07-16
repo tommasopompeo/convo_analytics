@@ -34,6 +34,16 @@
 
     <div class="split-main stack-12">
 
+      <!-- User Comment / Missing Context -->
+      {% if user_comment %}
+      <div class="stack-4">
+        <h2 class="h2-sm">Your Comment / Missing Context</h2>
+        <div class="card card-soft">
+          <p class="prose" style="font-style: italic; color: var(--fg-2);">"{{ user_comment }}"</p>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- STAR: You, in this conversation — promoted to the lead. -->
       <div class="stack-4">
         <h2 class="h2-sm">You, in this conversation</h2>

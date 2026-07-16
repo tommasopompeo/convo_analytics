@@ -81,11 +81,11 @@ def get_current_user(
 
 def load_current_profile(conn: sqlite3.Connection, user_id: int) -> dict[str, Any]:
     row = conn.execute(
-        "SELECT profile_json FROM owner_profile WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+        "SELECT profile_data FROM owner_profile WHERE user_id = ? ORDER BY id DESC LIMIT 1",
         (user_id,),
     ).fetchone()
     if row:
-        return json.loads(row["profile_json"])
+        return json.loads(row["profile_data"])
     return empty_profile()
 
 
@@ -104,4 +104,76 @@ def load_utterances(conn: sqlite3.Connection, transcript_id: int) -> list[dict[s
         (transcript_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def export_transcript_to_file(conn: sqlite3.Connection, transcript_id: int) -> None:
+    """Export the transcript to a structured text file in data/exported_transcripts."""
+    import os
+    row = conn.execute(
+        """
+        SELECT t.id, a.filename
+          FROM transcripts t JOIN knowledge_entries a ON a.id = t.audio_file_id
+         WHERE t.id = ?
+        """,
+        (transcript_id,),
+    ).fetchone()
+    if not row:
+        return
+
+    filename = row["filename"]
+
+    # Get owner label
+    owner_row = conn.execute(
+        "SELECT speaker_label FROM speakers WHERE transcript_id = ? AND is_owner = 1",
+        (transcript_id,),
+    ).fetchone()
+    owner_label = owner_row["speaker_label"] if owner_row else None
+
+    # Get all speaker names mapping
+    local_names = {
+        r["speaker_label"]: r["local_name"]
+        for r in conn.execute(
+            "SELECT speaker_label, local_name FROM speakers WHERE transcript_id = ?",
+            (transcript_id,),
+        ).fetchall()
+    }
+
+    # Get utterances
+    utterances = conn.execute(
+        "SELECT speaker_label, start_sec, text FROM utterances WHERE transcript_id = ? ORDER BY start_sec",
+        (transcript_id,),
+    ).fetchall()
+
+    # Format the transcript lines
+    lines = []
+    lines.append(f"Transcript for: {filename}")
+    lines.append("=" * 60)
+    lines.append("")
+
+    for u in utterances:
+        ts = fmt_ts(u["start_sec"])
+        label = u["speaker_label"]
+        if label == owner_label:
+            who = "You"
+        elif local_names.get(label):
+            who = local_names[label]
+        else:
+            who = label.replace("speaker_", "Voice ")
+
+        lines.append(f"[{ts}] {who}: {u['text']}")
+
+    base_name, _ = os.path.splitext(filename)
+    export_dir = config.DATA_DIR / "exported_transcripts"
+    os.makedirs(export_dir, exist_ok=True)
+    
+    base_path = os.path.join(export_dir, f"{base_name}_transcript")
+    export_path = f"{base_path}.txt"
+    counter = 1
+    while os.path.exists(export_path):
+        export_path = f"{base_path}_{counter}.txt"
+        counter += 1
+
+    with open(export_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
 

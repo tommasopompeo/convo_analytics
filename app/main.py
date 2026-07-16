@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import config
 from .db import init_db
-from .routes import analysis, auth, transcripts, uploads
+from .routes import analysis, auth, transcripts, uploads, chat
 from .web import UnauthenticatedException
 
 
@@ -41,4 +41,5 @@ app.include_router(auth.router)
 app.include_router(uploads.router)
 app.include_router(transcripts.router)
 app.include_router(analysis.router)
+app.include_router(chat.router)
 

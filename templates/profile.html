@@ -10,6 +10,14 @@
     <p class="lead">This grows only from your own words, gathered gently across every
       conversation you choose to reflect on. No one else is ever profiled, and nothing
       here leaves this device.</p>
+    <div style="margin-top: var(--space-4);">
+      <a href="/chat" class="btn btn-primary" style="font-weight: 600; padding: 12px 24px;">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 1.25em; height: 1.25em;">
+          <path d="M16 10a6 6 0 1 1-12 0c0-1.2.3-2.3.9-3.2L4 4l2.8.9c.9-.6 2-.9 3.2-.9a6 6 0 0 1 6 6z" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Discover more about you
+      </a>
+    </div>
   </div>
 
   {% if n_total %}
@@ -30,117 +38,49 @@
   </div>
   {% endif %}
 
-  {% if aggregate %}
-  {# ─── The genuine cross-corpus synthesis (the centerpiece) ─────────────── #}
-  {% set meta = aggregate.corpus_meta %}
-  <div class="card card-raised stack-4">
+  {# ─── The fully editable profile form matching the new schema ─────────────── #}
+  <div class="card card-raised stack-6">
     <div class="row-between">
-      <h2 class="h2-sm">Who you seem to be</h2>
-      <span class="badge badge-quiet">{% if aggregate.confidence %}{{ aggregate.confidence }} confidence &middot; {% endif %}{{ meta.conversation_count or n_total }} of {{ n_total }}</span>
+      <h2 class="h2-sm">Your Portrait</h2>
+      <span class="badge badge-quiet">Version {{ profile.version or 0 }}</span>
     </div>
-    <p class="prose" style="font-family: var(--font-display); font-size: 23px; line-height: 1.46; color: var(--fg); text-wrap: pretty">{{ aggregate.portrait }}</p>
-    <div class="row" style="flex-wrap: wrap; gap: var(--space-3)">
-      <span class="body-meta">Drawn from {{ meta.conversation_count or n_total }} conversation{{ '' if (meta.conversation_count or n_total) == 1 else 's' }}{% if aggregate._created_at %} &middot; refreshed {{ aggregate._created_at[:10] }}{% endif %}</span>
-      <span class="aside-serif" style="font-size: var(--text-sm)">a synthesis, not your latest talk</span>
-    </div>
-    {% if analyses_count > (meta.conversation_count or 0) %}
-    <p class="body-meta" style="color: var(--warn)">{{ analyses_count - (meta.conversation_count or 0) }} newer conversation{{ '' if (analyses_count - (meta.conversation_count or 0)) == 1 else 's' }} not yet folded in &mdash; refresh below to bring the portrait current.</p>
-    {% endif %}
-  </div>
-
-  {% if aggregate.shows_up_differently %}
-  <div class="stack-4">
-    <h2 class="h2-sm">How you show up, by setting</h2>
-    <p class="body-meta">The same drive, played in different registers &mdash; something no single conversation could show.</p>
-    <div class="register-grid">
-      {% for r in aggregate.shows_up_differently %}
-      <div class="register">
-        <span class="register-ctx">{{ r.context }}</span>
-        <p class="register-how">{{ r.how }}</p>
-        {% if r.supporting_conversations %}<span class="register-src">{{ r.supporting_conversations | join(", ") }}</span>{% endif %}
+    
+    <form action="/profile/update" method="post" class="stack-6">
+      <div class="field">
+        <label for="who_i_am">Who I am</label>
+        <p class="field-help" style="color: var(--meta); margin-bottom: 2px;">A holistic, 3-5 sentence portrait synthesized from your conversations.</p>
+        <textarea id="who_i_am" name="who_i_am" rows="5" placeholder="Describe who you seem to be...">{{ profile.who_i_am or '' }}</textarea>
       </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
 
-  {% if aggregate.recurring_themes %}
-  <div class="stack-4">
-    <h2 class="h2-sm">What keeps surfacing</h2>
-    <div class="freq">
-      {% for t in aggregate.recurring_themes %}
-      <div class="freq-row">
-        <span class="theme">{{ t.theme }}</span>
-        <span class="presence">
-          {% for _ in range(t.conversation_count if t.conversation_count <= n_total else n_total) %}<span class="pdot"></span>{% endfor %}
-          {% for _ in range(n_total - t.conversation_count if t.conversation_count <= n_total else 0) %}<span class="pdot off"></span>{% endfor %}
-          <span class="pcount">{% if t.conversation_count >= n_total and n_total == 2 %}both{% else %}{{ t.conversation_count }} of {{ n_total }}{% endif %}</span>
-        </span>
+      <div class="field">
+        <label for="current_issues">Current Issues & Concerns</label>
+        <p class="field-help" style="color: var(--meta); margin-bottom: 2px;">Key conflicts, goals, or areas of focus currently occupying you (one per line).</p>
+        <textarea id="current_issues" name="current_issues" rows="4" placeholder="Enter issues/concerns, one per line...">{% if profile.current_issues %}{{ profile.current_issues | join('\n') }}{% endif %}</textarea>
       </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
 
-  {% if aggregate.tensions %}
-  <div class="stack-4">
-    <h2 class="h2-sm">{{ 'A quiet tension' if aggregate.tensions|length == 1 else 'Quiet tensions' }}</h2>
-    {% for t in aggregate.tensions %}
-    <dl class="tension">
-      <dt>You say</dt><dd>{{ t.stated }}</dd>
-      <dt>Yet you</dt><dd>{{ t.observed }}</dd>
-    </dl>
-    {% endfor %}
-  </div>
-  {% endif %}
+      <div class="field">
+        <label for="recurrent_topics">Recurrent Topics</label>
+        <p class="field-help" style="color: var(--meta); margin-bottom: 2px;">Themes that frequently surface across your conversations (one per line).</p>
+        <textarea id="recurrent_topics" name="recurrent_topics" rows="4" placeholder="Enter recurrent topics, one per line...">{% if profile.recurrent_topics %}{{ profile.recurrent_topics | join('\n') }}{% endif %}</textarea>
+      </div>
 
-  {% if aggregate.drift and aggregate.drift.points %}
-  <div class="stack-4">
-    <h2 class="h2-sm">How the portrait took shape</h2>
-    {% if aggregate.drift.summary %}<p class="body-meta">{{ aggregate.drift.summary }}</p>{% endif %}
-    <ul class="timeline">
-      {% for p in aggregate.drift.points %}
-      <li {% if loop.last %}class="now"{% endif %}>
-        <div class="t-when">{% if p.date %}{{ p.date }} &middot; {% endif %}{{ p.conversation }}{% if loop.last %} &middot; now{% endif %}</div>
-        <div class="t-signal">{{ p.signal }}</div>
-      </li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
+      <div class="field">
+        <label for="strong_opinions">Strong Opinions & Stances</label>
+        <p class="field-help" style="color: var(--meta); margin-bottom: 2px;">Values, beliefs, and firm viewpoints you have expressed (one per line).</p>
+        <textarea id="strong_opinions" name="strong_opinions" rows="4" placeholder="Enter strong opinions, one per line...">{% if profile.strong_opinions %}{{ profile.strong_opinions | join('\n') }}{% endif %}</textarea>
+      </div>
 
-  {% else %}
-  {# ─── No synthesis yet — fall back to the accumulated profile + a nudge ─── #}
-  <div class="card card-raised stack-4">
-    <div class="row-between">
-      <h2 class="h2-sm">Who you seem to be, right now</h2>
-      <span class="badge badge-quiet">v{{ profile.version }}</span>
-    </div>
-    {% if profile.current_archetype %}
-    <p class="prose" style="font-family: var(--font-display); font-size: 22px; line-height: 1.45; color: var(--fg); text-wrap: pretty">{{ profile.current_archetype }}</p>
-    <p class="body-meta">This is your most recent conversation&rsquo;s read. Refresh below to synthesise a genuine portrait across all {{ n_total }} of them.</p>
-    {% else %}
-    <p class="body-muted">Not enough has been shared yet. Reflect on a conversation to begin
-      the portrait &mdash; it will fill in gently, over time.</p>
-    {% endif %}
-  </div>
+      <div class="field">
+        <label for="tone_and_sentiment">Tone & Sentiment</label>
+        <p class="field-help" style="color: var(--meta); margin-bottom: 2px;">Summary of your general communication tone and dominant sentiment/emotional register.</p>
+        <textarea id="tone_and_sentiment" name="tone_and_sentiment" rows="3" placeholder="Describe your general tone...">{{ profile.tone_and_sentiment or '' }}</textarea>
+      </div>
 
-  {% if profile.recurring_topics %}
-  <div class="stack-4">
-    <h2 class="h2-sm">What keeps coming up</h2>
-    <div class="chip-list">
-      {% for t in profile.recurring_topics %}<span class="tag">{{ t }}</span>{% endfor %}
-    </div>
+      <div style="margin-top: var(--space-4);">
+        <button type="submit" class="btn btn-primary" style="font-weight: 600;">Save Portrait Changes</button>
+      </div>
+    </form>
   </div>
-  {% endif %}
-
-  {% if profile.communication_style_notes %}
-  <div class="stack-4">
-    <h2 class="h2-sm">How you tend to speak</h2>
-    <ul class="list-reflective">{% for n in profile.communication_style_notes %}<li>{{ n }}</li>{% endfor %}</ul>
-  </div>
-  {% endif %}
-  {% endif %}
 
   {% if n_total %}
   <hr class="rule" />
@@ -157,7 +97,7 @@
         Refresh now
       </a>
     </div>
-    <p class="prose" style="color: var(--fg-2)">Analyze all your conversations using Gemini Pro to synthesize a holistic reflection. This will identify recurring themes, tensions, and drift across your corpus without manual copying and pasting.</p>
+    <p class="prose" style="color: var(--fg-2)">Analyze all your conversations using Gemini Pro to synthesize a holistic reflection. This will identify recurring themes, tensions, and drift across your corpus while respecting your manual edits and context comments.</p>
     <p class="body-meta">Powered by gemini-1.5-pro for complex multi-document reasoning.</p>
   </div>
   {% endif %}

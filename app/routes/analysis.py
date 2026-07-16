@@ -38,8 +38,8 @@ def _transcript_meta(conn, transcript_id: int, user_id: int):
     return conn.execute(
         """
         SELECT t.id, t.audio_file_id, a.conversation_type, a.owner_role,
-               a.objective, a.context_note, a.single_sided
-          FROM transcripts t JOIN audio_files a ON a.id = t.audio_file_id
+               a.objective, a.context_note, a.single_sided, a.recorded_date
+          FROM transcripts t JOIN knowledge_entries a ON a.id = t.audio_file_id
          WHERE t.id = ? AND a.user_id = ?
         """,
         (transcript_id, user_id),
@@ -51,6 +51,19 @@ def _build_prompt_for(conn, transcript_id: int, owner_label: str, user_id: int) 
     utterances = load_utterances(conn, transcript_id)
     metrics = metrics_mod.compute_metrics(utterances, None)
     speaker_labels = sorted({u["speaker_label"] for u in utterances})
+    
+    speaker_rows = conn.execute(
+        "SELECT speaker_label, is_owner, local_name FROM speakers WHERE transcript_id=?",
+        (transcript_id,),
+    ).fetchall()
+    speaker_mapping = {
+        r["speaker_label"]: {
+            "is_owner": bool(r["is_owner"]),
+            "local_name": r["local_name"],
+        }
+        for r in speaker_rows
+    }
+
     return prompt_builder.build_prompt(
         metadata=dict(meta),
         owner_label=owner_label,
@@ -59,6 +72,7 @@ def _build_prompt_for(conn, transcript_id: int, owner_label: str, user_id: int) 
         utterances=utterances,
         profile_json=load_current_profile(conn, user_id),
         single_sided=bool(meta["single_sided"]),
+        speaker_mapping=speaker_mapping,
     )
 
 
@@ -110,6 +124,7 @@ def analyze_page(
 async def ingest_analysis(
     transcript_id: int,
     request: Request,
+    user_comment: str = Form(None),
     conn=Depends(db_dep),
     user=Depends(get_current_user),
 ):
@@ -141,11 +156,12 @@ async def ingest_analysis(
     utterances = load_utterances(conn, transcript_id)
     metrics = metrics_mod.compute_metrics(utterances, None)
     cur = conn.execute(
-        "INSERT INTO analyses (transcript_id, metrics_json, llm_output_json, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO analyses (transcript_id, metrics_json, llm_output_json, user_comment, created_at) VALUES (?, ?, ?, ?, ?)",
         (
             transcript_id,
             json.dumps(metrics, ensure_ascii=False),
             analysis.model_dump_json(by_alias=True),
+            user_comment,
             utc_now_iso(),
         ),
     )
@@ -158,12 +174,10 @@ async def ingest_analysis(
     )
     if merged is not current:  # merge applied (not a duplicate ingest)
         conn.execute(
-            "INSERT INTO owner_profile (user_id, profile_json, archetype, archetype_notes, updated_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO owner_profile (user_id, profile_data, updated_at) VALUES (?, ?, ?)",
             (
                 user["id"],
                 json.dumps(merged, ensure_ascii=False),
-                merged.get("current_archetype", ""),
-                profile_merge.render_notes(merged),
                 utc_now_iso(),
             ),
         )
@@ -180,10 +194,10 @@ def result_view(
 ):
     row = conn.execute(
         """
-        SELECT an.id, an.transcript_id, an.llm_output_json, an.created_at
+        SELECT an.id, an.transcript_id, an.llm_output_json, an.user_comment, an.created_at
           FROM analyses an
           JOIN transcripts t ON t.id = an.transcript_id
-          JOIN audio_files af ON af.id = t.audio_file_id
+          JOIN knowledge_entries af ON af.id = t.audio_file_id
          WHERE an.id = ? AND af.user_id = ?
         """,
         (analysis_id, user["id"]),
@@ -200,6 +214,7 @@ def result_view(
             "analysis": analysis.model_dump() if analysis else None,
             "transcript_id": row["transcript_id"],
             "created_at": row["created_at"],
+            "user_comment": row["user_comment"],
             "profile": profile,
             "user": user,
         },
@@ -224,11 +239,38 @@ def profile_view(
     """
     profile = load_current_profile(conn, user["id"])
     aggregate = aggregate_merge.load_latest_aggregate(conn, user["id"])
+    
+    # Fallback to aggregate fields if the profile has no unified schema data
+    if aggregate:
+        if not profile.get("who_i_am"):
+            profile["who_i_am"] = aggregate.get("who_i_am") or aggregate.get("portrait") or ""
+        if not profile.get("tone_and_sentiment"):
+            profile["tone_and_sentiment"] = aggregate.get("tone_and_sentiment") or ""
+        if not profile.get("current_issues"):
+            profile["current_issues"] = aggregate.get("current_issues") or []
+        if not profile.get("recurrent_topics"):
+            profile["recurrent_topics"] = aggregate.get("recurrent_topics") or [t.get("theme") for t in aggregate.get("recurring_themes", []) if t.get("theme")] or []
+        if not profile.get("strong_opinions"):
+            profile["strong_opinions"] = aggregate.get("strong_opinions") or []
+    
+    # Ensure new schema fields exist to prevent Jinja errors or keep templates clean
+    for key in ["who_i_am", "tone_and_sentiment"]:
+        if key not in profile or not profile[key]:
+            profile[key] = ""
+    for key in ["current_issues", "recurrent_topics", "strong_opinions"]:
+        if key not in profile or not profile[key]:
+            # Fallback to old lists if they exist, or empty list
+            if key == "recurrent_topics" and "recurring_topics" in profile:
+                profile[key] = profile["recurring_topics"]
+            elif key == "current_issues" and "goals_concerns" in profile:
+                profile[key] = profile["goals_concerns"]
+            else:
+                profile[key] = []
     analyses_count = conn.execute(
         """
         SELECT COUNT(*) FROM analyses an
           JOIN transcripts t ON t.id = an.transcript_id
-          JOIN audio_files af ON af.id = t.audio_file_id
+          JOIN knowledge_entries af ON af.id = t.audio_file_id
          WHERE af.user_id = ?
         """,
         (user["id"],),
@@ -249,6 +291,45 @@ def profile_view(
     )
 
 
+@router.post("/profile/update")
+def update_profile(
+    request: Request,
+    who_i_am: str = Form(""),
+    current_issues: str = Form(""),
+    recurrent_topics: str = Form(""),
+    strong_opinions: str = Form(""),
+    tone_and_sentiment: str = Form(""),
+    conn=Depends(db_dep),
+    user=Depends(get_current_user),
+):
+    issues_list = [line.strip() for line in current_issues.splitlines() if line.strip()]
+    topics_list = [line.strip() for line in recurrent_topics.splitlines() if line.strip()]
+    opinions_list = [line.strip() for line in strong_opinions.splitlines() if line.strip()]
+    
+    current = load_current_profile(conn, user["id"])
+    
+    new_profile = dict(current)
+    new_profile.update({
+        "who_i_am": who_i_am,
+        "current_issues": issues_list,
+        "recurrent_topics": topics_list,
+        "strong_opinions": opinions_list,
+        "tone_and_sentiment": tone_and_sentiment,
+        "version": current.get("version", 0) + 1,
+    })
+    
+    conn.execute(
+        "INSERT INTO owner_profile (user_id, profile_data, updated_at) VALUES (?, ?, ?)",
+        (
+            user["id"],
+            json.dumps(new_profile, ensure_ascii=False),
+            utc_now_iso(),
+        ),
+    )
+    conn.commit()
+    return RedirectResponse("/profile", status_code=303)
+
+
 @router.get("/profile/refresh", response_class=HTMLResponse)
 def refresh_page(
     request: Request, conn=Depends(db_dep), user=Depends(get_current_user)
@@ -258,7 +339,7 @@ def refresh_page(
         """
         SELECT COUNT(*) FROM analyses an
           JOIN transcripts t ON t.id = an.transcript_id
-          JOIN audio_files af ON af.id = t.audio_file_id
+          JOIN knowledge_entries af ON af.id = t.audio_file_id
          WHERE af.user_id = ?
         """,
         (user["id"],),
@@ -290,9 +371,12 @@ async def ingest_aggregate(
     if not conversations:
         return JSONResponse({"error": "No conversations to analyze."}, status_code=400)
 
+    user_profile = load_current_profile(conn, user["id"])
+
     prompt = prompt_builder.build_aggregate_prompt(
         conversations=conversations,
         current_aggregate=current_aggregate,
+        user_profile=user_profile,
         corpus_stats=corpus_stats,
         synthesis_type="full",
     )
@@ -316,4 +400,16 @@ async def ingest_aggregate(
         source_analysis_ids=corpus_stats["source_analysis_ids"],
         conversation_count=corpus_stats["conversation_count"],
     )
+
+    # Also write to owner_profile so it becomes the current user profile!
+    conn.execute(
+        "INSERT INTO owner_profile (user_id, profile_data, updated_at) VALUES (?, ?, ?)",
+        (
+            user["id"],
+            json.dumps(aggregate.model_dump(), ensure_ascii=False),
+            utc_now_iso(),
+        ),
+    )
+    conn.commit()
+
     return JSONResponse({"status": "success"})

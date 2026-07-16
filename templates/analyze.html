@@ -21,8 +21,12 @@
     </div>
     {% endif %}
 
-    <form id="analyze-form" action="/transcripts/{{ transcript_id }}/analyze" method="post" style="display:flex; justify-content:center; width:100%">
-      <button type="submit" class="btn btn-primary btn-lg">Generate reflection</button>
+    <form id="analyze-form" action="/transcripts/{{ transcript_id }}/analyze" method="post" style="display:flex; flex-direction:column; align-items:center; width:100%; gap: var(--space-4);">
+      <div class="field" style="width: 100%; max-width: 48ch; text-align: left;">
+        <label for="user_comment">Add Comment / Missing Context <span class="optional">(optional)</span></label>
+        <textarea id="user_comment" name="user_comment" rows="4" placeholder="e.g., Costantino was in a rush, or we discussed pricing details outside of the transcript..." style="resize: vertical;"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg" style="margin-top: var(--space-2);">Generate reflection</button>
     </form>
   </div>
 

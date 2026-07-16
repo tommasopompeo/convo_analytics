@@ -3,7 +3,7 @@
 {% set nav = 'recordings' %}
 {% block content %}
 <div class="page page-flow stack-8 center reveal" style="padding-block: clamp(var(--space-16), 12vh, 140px)">
-  <p class="step" style="justify-content:center"><span class="step-n">03</span> of 05 · Transcribing</p>
+  <p class="step" style="justify-content:center"><span class="step-n">03</span> of 05 · {% if file.entry_type == 'text' %}Analyzing{% else %}Transcribing{% endif %}</p>
 
   <div id="transcribe" data-file-id="{{ file.id }}"
        style="display:flex; flex-direction:column; align-items:center; gap:var(--space-8)">
@@ -12,9 +12,8 @@
     </div>
 
     <div class="stack-3" style="max-width: 42ch">
-      <h1 id="status-label">Listening to your recording</h1>
-      <p class="lead">This can take a little while for longer conversations. You’re welcome
-        to leave this page open — it will move on gently on its own when it’s ready.</p>
+      <h1 id="status-label">{% if file.entry_type == 'text' %}Reflecting on your document{% else %}Listening to your recording{% endif %}</h1>
+      <p class="lead">{% if file.entry_type == 'text' %}This can take a little while for longer documents as Gemini extracts communication insights. You’re welcome to leave this page open.{% else %}This can take a little while for longer conversations. You’re welcome to leave this page open — it will move on gently on its own when it’s ready.{% endif %}</p>
     </div>
 
     <div id="status-error" class="notice notice-error" style="display:none; text-align:left; width:100%"></div>

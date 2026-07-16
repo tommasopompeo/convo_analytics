@@ -23,6 +23,12 @@ def empty_profile() -> dict[str, Any]:
         "archetype_signal_trail": [],
         "current_archetype": "",
         "source_analysis_ids": [],
+        # new schema fields:
+        "who_i_am": "",
+        "current_issues": [],
+        "recurrent_topics": [],
+        "strong_opinions": [],
+        "tone_and_sentiment": "",
     }
 
 
@@ -55,21 +61,45 @@ def merge(current: dict[str, Any], diff: dict[str, Any], analysis_id: int) -> di
     if analysis_id in current.get("source_analysis_ids", []):
         return current  # already applied — no double-count
 
+    recurring_topics = _dedupe_extend(
+        current.get("recurring_topics", []), diff.get("recurring_topics_add", [])
+    )
+    communication_style_notes = _dedupe_extend(
+        current.get("communication_style_notes", []), diff.get("communication_style_notes", [])
+    )
+    goals_concerns = _dedupe_extend(
+        current.get("goals_concerns", []), diff.get("goals_concerns_add", [])
+    )
+
     merged = {
         "version": current.get("version", 0) + 1,
-        "recurring_topics": _dedupe_extend(
-            current.get("recurring_topics", []), diff.get("recurring_topics_add", [])
-        ),
-        "communication_style_notes": _dedupe_extend(
-            current.get("communication_style_notes", []), diff.get("communication_style_notes", [])
-        ),
-        "goals_concerns": _dedupe_extend(
-            current.get("goals_concerns", []), diff.get("goals_concerns_add", [])
-        ),
+        "recurring_topics": recurring_topics,
+        "communication_style_notes": communication_style_notes,
+        "goals_concerns": goals_concerns,
         "archetype_signal_trail": list(current.get("archetype_signal_trail", [])),
         "current_archetype": current.get("current_archetype", ""),
         "source_analysis_ids": current.get("source_analysis_ids", []) + [analysis_id],
+        
+        # New fields (derived from diff or kept as is)
+        "who_i_am": current.get("who_i_am", ""),
+        "current_issues": _dedupe_extend(
+            current.get("current_issues", []), diff.get("goals_concerns_add", [])
+        ),
+        "recurrent_topics": _dedupe_extend(
+            current.get("recurrent_topics", []), diff.get("recurring_topics_add", [])
+        ),
+        "strong_opinions": current.get("strong_opinions", []),
+        "tone_and_sentiment": current.get("tone_and_sentiment", ""),
     }
+
+    if diff.get("communication_style_notes"):
+        existing_tone = current.get("tone_and_sentiment", "")
+        new_notes = [n.strip() for n in diff["communication_style_notes"] if n.strip()]
+        if new_notes:
+            if existing_tone:
+                merged["tone_and_sentiment"] = existing_tone + "\n" + "\n".join(new_notes)
+            else:
+                merged["tone_and_sentiment"] = "\n".join(new_notes)
 
     signal = (diff.get("archetype_signal") or "").strip()
     if signal:

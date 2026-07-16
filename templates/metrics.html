@@ -48,7 +48,12 @@
     <div class="split-main stack-8">
       <!-- The one chart the per-conversation view earns: talk-time balance. -->
       <div class="stack-4">
-        <h2 class="h2-sm">How the floor was shared</h2>
+        <div class="row-between" style="align-items: baseline;">
+          <h2 class="h2-sm">How the floor was shared</h2>
+          {% if transcript.entry_type == 'audio' %}
+          <a href="/transcripts/{{ transcript.id }}/speakers" class="link-arrow" style="font-size: var(--text-sm);">Change speaker assignment &rarr;</a>
+          {% endif %}
+        </div>
         <div class="card stack-4">
           {% if n_speakers == 2 and owner and owner.talk_time_pct is not none %}
           {% set other = others | first %}
@@ -105,7 +110,12 @@
   </div>
 
   <div class="row-between" style="align-items:center; gap:var(--space-4)">
-    <a href="/" class="btn btn-ghost">← All recordings</a>
+    <div class="row" style="gap: var(--space-3)">
+      <a href="/" class="btn btn-ghost">← All recordings</a>
+      {% if transcript.entry_type == 'audio' %}
+      <a href="/transcripts/{{ transcript.id }}/speakers" class="btn btn-secondary">Change speaker assignment</a>
+      {% endif %}
+    </div>
     {% if analysis_id %}
     <div class="row" style="gap: var(--space-3)">
       <a href="/transcripts/{{ transcript.id }}/analyze" class="btn btn-ghost">Reflect again</a>
